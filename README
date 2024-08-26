@@ -1,3 +1,6 @@
+this is a native lib for amupdf-android:
+https://github.com/archko/amupdf-android.git
+
 ## Building
 
 ->git clone http://git.ghostscript.com/mupdf.git libmupdf

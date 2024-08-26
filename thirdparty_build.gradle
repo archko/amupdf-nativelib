@@ -1,0 +1,146 @@
+/*CHANGE necessary properties in project.gradle*/
+apply from: 'project.gradle'
+defaultTasks 'buildNativeLibs'
+
+buildscript {
+    repositories { mavenCentral() }
+}
+
+/*DJVU CHAIN*/
+task downloadDjvu {
+    doLast {
+        def djvuFolder = new File(djvu)
+        if (djvuFolder.exists()) {
+            // Switch to master so we can properly pull if it was
+            // detached.
+            exec {
+                commandLine = ['git', '-C', djvu, 'checkout', '-f', 'master']
+            }
+            // Fetch
+            exec {
+                commandLine = ['git', '-C', djvu, 'fetch', 'origin']
+            }
+        }
+        else {
+            exec {
+                //origin at git://git.code.sf.net/p/djvu/djvulibre-git
+                commandLine = ['git', 'clone', 'https://github.com/max-kammerer/djvulibre.git', djvu]
+            }
+        }
+
+        exec {
+            workingDir file(djvu)
+            commandLine = ['git', 'checkout', 'a8ae572254a6cf5c0f036e655daf3517a0452e07']
+        }
+    }
+}
+
+//Keep until migration
+task downloadAndPatchDjvu(dependsOn: [downloadDjvu])
+
+task buildDjvu() {
+    doLast {
+        exec {
+            workingDir file(djvuModule)
+            commandLine ndkDir + "/ndk-build"
+        }
+    }
+}
+
+task djvuChain(dependsOn: [buildDjvu])
+
+buildDjvu.mustRunAfter downloadDjvu
+
+
+/*MUPDF CHAIN*/
+task downloadLibArchive {
+    def version = "v3.7.4"
+
+    doLast {
+        def folder = new File(libarchive)
+        if (folder.exists()) {
+            exec {
+                commandLine = ['git', '-C', mupdf, 'checkout', '-f', 'master']
+            }
+            // Fetch
+            exec {
+                commandLine = ['git', '-C', mupdf, 'fetch', 'origin']
+            }
+        }
+        else {
+            exec {
+                commandLine = ['git', 'clone', 'https://github.com/libarchive/libarchive.git', libarchive]
+            }
+        }
+
+        exec {
+            workingDir file(folder)
+            commandLine = ['git', 'checkout', version]
+        }
+    }
+}
+
+task downloadMupdf {
+    def version = "1.24.8"
+
+    doLast {
+        def mupdfFolder = new File(mupdf)
+        if (mupdfFolder.exists()) {
+            // Switch to master so we can properly pull if it was
+            // detached.
+            exec {
+                commandLine = ['git', '-C', mupdf, 'checkout', '-f', 'master']
+            }
+            // Fetch
+            exec {
+                commandLine = ['git', '-C', mupdf, 'fetch', 'origin']
+            }
+        }
+        else {
+            exec {
+                commandLine = ['git', 'clone', 'https://github.com/ArtifexSoftware/mupdf.git', mupdf]
+            }
+        }
+
+        exec {
+            workingDir file(mupdf)
+            commandLine = ['git', 'checkout', version]
+        }
+
+        exec {
+            workingDir file(mupdf)
+            commandLine 'git', 'submodule', 'init'
+        }
+        exec {
+            workingDir file(mupdf)
+            commandLine 'git', 'submodule', 'update'
+        }
+    }
+}
+
+task downloadAndMakeMupdf(dependsOn: [downloadMupdf])  {
+    doLast {
+        /*For more details see mupdf/platform/android/viewer/ReadMe.txt*/
+        exec {
+            workingDir file(mupdf)
+            commandLine 'make', 'generate'
+        }
+    }
+}
+
+task buildMupdf() {
+    doLast {
+        exec {
+            workingDir file(mupdfModule)
+            commandLine ndkDir + "/ndk-build"
+        }
+    }
+}
+
+task mupdfChain(dependsOn: [downloadAndMakeMupdf, buildMupdf])
+
+mupdfChain.mustRunAfter djvuChain
+
+
+/*!!!!!!!!!!RUN ME!!!!!!!!*/
+task buildNativeLibs(dependsOn: [djvuChain, mupdfChain])

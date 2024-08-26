@@ -1,0 +1,11 @@
+compile:
+cd libmupdf
+->make -C libmupdf generate
+->git pull
+->git submodule update
+->cd ..
+->./gradlew assembleRelease
+cp /Users/archko/Projects/PDF/mupdf-fiz/build/outputs/aar/mupdf-fiz-release.aar  /Users/archko/Projects/PDF/amupdf-android/solib/mupdf-android-fitz/libs/mupdf_c-release.aar
+
+git diff ./ > archko.patch
+

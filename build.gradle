@@ -1,120 +1,19 @@
-apply plugin: 'com.android.library'
-apply plugin: 'maven-publish'
-
-group = 'com.artifex.mupdf'
-version = '1.24.3'
-
 buildscript {
-	repositories {
-        maven {
-            url "https://maven.aliyun.com/repository/public"
-        }
-        maven {
-            url "https://maven.aliyun.com/repository/google"
-        }
-		maven { url "https://jitpack.io" }
-		google()
-		mavenCentral()
-		maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
-		maven { url "https://kotlin.bintray.com/kotlinx/" }
-	}
-	dependencies {
-		classpath 'com.android.tools.build:gradle:8.4.0'
-	}
+    ext.kotlin_version = '2.0.20'
+    repositories {
+        mavenCentral()
+        google()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.6.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
 }
 
 allprojects {
-	repositories {
-        maven {
-            url "https://maven.aliyun.com/repository/public"
-        }
-        maven {
-            url "https://maven.aliyun.com/repository/google"
-        }
-		maven { url "https://jitpack.io" }
-		google()
-		mavenCentral()
-		maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
-		maven { url "https://kotlin.bintray.com/kotlinx/" }
-	}
-}
-
-/*uploadArchives {
     repositories {
-        mavenDeployer {
-            repository(url: "file:///Users/archko/projects/PDF/mupdf_c/")
-            pom.version = '1.0-SNAPSHOT'
-            pom.groupId = 'com.artifex.mupdf'
-            pom.artifactId = 'mupdf-fitz'
-        }
+        mavenLocal()
+        mavenCentral()
+        google()
     }
-}*/
-publishing {
-	publications {
-        // 定义一个名为 mupdf 的发布,
-		// 运行./gradlew publishMupdfPublicationToLocalRepoRepository发布到下面定义的mupdf_c
-		// ./gradlew publishMupdfPublicationToMavenLocal发布到.m2下面
-		// ./gradlew publishMupdfPublicationToRemoteRepoRepository则是发布到远程,要配置远程仓库
-		//maven {
-		//	name = "remoteRepo"
-		//	url = "http://my.org/repo"
-		//}
-        mupdf(MavenPublication) {
-            groupId = "com.artifex.mupdf"
-            artifactId = "mupdf-fitz"
-            version = '1.24.3'
-            // 必须有这个 否则不会上传AAR包
-            afterEvaluate { artifact(tasks.getByName("bundleReleaseAar")) }
-            // 上传source，这样使用方可以看到方法注释
-            //artifact generateSourcesJar
-        }
-    }
-    repositories {
-        maven {
-            // 基于版本名称选择不同的仓库地址
-            def releasesRepoUrl = "file:///Users/archko/pdf/mupdf_c/"
-            def snapshotsRepoUrl = "file:///Users/archko/pdf/mupdf_c/"
-			name = 'localRepo'
-            // url是必须要配置的
-            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-            // 仓库用户名密码
-            //credentials {
-            //    username = "root"
-            //    password = "root"
-            //}
-        }
-    }
-}
-
-android {
-	compileSdkVersion 34
-	buildToolsVersion '34.0.0'
-	namespace "com.artifex.mupdf.fitz"
-
-	defaultConfig {
-		minSdkVersion 19
-		targetSdkVersion 33
-		externalNativeBuild.ndkBuild.arguments '-j4'
-
-		// Set ABI_FILTERS in your gradle.properties file
-		//if (project.hasProperty('ABI_FILTERS')) {
-		//	ndk.abiFilters = []
-		//	ndk.abiFilters.addAll(ABI_FILTERS.split(',').collect{it as String})
-		//}
-		ndk{
-			abiFilters  "arm64-v8a" //,"armeabi-v7a"
-		}
-	}
-
-	sourceSets {
-		main {
-			manifest.srcFile 'AndroidManifest.xml'
-			java.srcDirs 'libmupdf/platform/java/src'
-		}
-	}
-
-	externalNativeBuild {
-		ndkBuild.path 'libmupdf/platform/java/Android.mk'
-	}
-	android.ndkVersion '25.2.9519653'
 }

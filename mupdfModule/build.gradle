@@ -14,6 +14,10 @@ android {
                 arguments "-DANDROID_STL=c++_static"
             }
         }
+
+        ndk{
+            abiFilters  "arm64-v8a" //,"armeabi-v7a"
+        }
     }
 
     compileOptions {
@@ -24,6 +28,13 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs '../libmupdf/platform/java/src'
+        }
     }
 
     externalNativeBuild {

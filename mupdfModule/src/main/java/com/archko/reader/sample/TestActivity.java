@@ -5,15 +5,20 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
-import android.view.View;
+import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.artifex.mupdf.fitz.Document;
+import com.artifex.mupdf.fitz.Page;
 import com.artifex.mupdf.fitz.R;
+import com.artifex.mupdf.fitz.android.AndroidDrawDevice;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -28,7 +33,8 @@ public class TestActivity extends AppCompatActivity {
     private final static int REQUEST_CODE = 42;
     public static final int PERMISSION_CODE = 42042;
 
-    String pdfFileName;
+    private String pdfFileName;
+    private ImageView imageView;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -39,6 +45,7 @@ public class TestActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
         findViewById(R.id.btn).setOnClickListener(v -> launchPicker());
+        imageView = findViewById(R.id.image);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
@@ -64,8 +71,6 @@ public class TestActivity extends AppCompatActivity {
         } else {
             afterViews();
         }
-
-        //launchPicker();
     }
 
     void launchPicker() {
@@ -79,13 +84,48 @@ public class TestActivity extends AppCompatActivity {
     }
 
     void afterViews() {
-        setTitle(pdfFileName);
     }
 
     private void displayFromUri(Uri uri) {
         pdfFileName = IntentFile.getPath(this, uri);
-        System.out.println("name:"+pdfFileName);
+        System.out.println("name:" + pdfFileName);
 
+        Document document = Document.openDocument(pdfFileName);
+        int pageCount = document.countPages();
+        Bitmap bitmap = renderBitmap(document);
+        System.out.println(String.format("decode:%s:%s", pageCount, bitmap));
+        imageView.setImageBitmap(bitmap);
+    }
+
+    public Bitmap renderBitmap(Document document) {
+        float scale = 1f / 1;
+        Page page = document.loadPage(1);
+        int width = (int) (page.getBounds().x1 - page.getBounds().x0);
+        int height = (int) (page.getBounds().y1 - page.getBounds().y0);
+        android.graphics.Rect cropBound = new Rect(0, 0, width, height);
+        int pageW;
+        int pageH;
+        int patchX;
+        int patchY;
+        //如果页面的缩放为1,那么这时的pageW就是view的宽.
+        pageW = (int) (cropBound.width() * scale);
+        pageH = (int) (cropBound.height() * scale);
+
+        patchX = (int) (cropBound.left * scale);
+        patchY = (int) (cropBound.top * scale);
+        Bitmap bitmap = Bitmap.createBitmap(pageW, pageH, Bitmap.Config.ARGB_8888);
+        com.artifex.mupdf.fitz.Matrix ctm = new com.artifex.mupdf.fitz.Matrix(scale);
+        AndroidDrawDevice dev = new AndroidDrawDevice(bitmap, patchX, patchY, 0, 0, pageW, pageH);
+
+        try {
+            page.run(dev, ctm, null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        dev.close();
+        dev.destroy();
+
+        return bitmap;
     }
 
     public void onResult(int resultCode, Intent intent) {

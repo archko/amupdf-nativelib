@@ -2,6 +2,7 @@ this is a native lib for amupdf-android:
 https://github.com/archko/amupdf-android.git
 
 ## Building
+thirdparty_build.gradle may not run corretly.
 
 ->git clone http://git.ghostscript.com/mupdf.git libmupdf
 ->cd libmupdf
@@ -22,7 +23,10 @@ modify page.java,add
 and
 stext-output.c
 
-
+### run module
+mupdfModule is a application, you can run it,and install app to test mupdf
+antiwordModule is a application, you can run it,and install app to test antiword
+djvuModule is a not application
 
 ## gradle task(not implemented)
 `./gradlew -b thirdparty_build.gradle downloadDjvu downloadAndMakeMupdf`

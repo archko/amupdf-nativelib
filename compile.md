@@ -1,5 +1,7 @@
-this project maybe used to debug jni.
-if you want to build an aar, you can modify build script to publish an aar, or create a new project mupdf-lib:
+### this project maybe used to debug jni.
+
+#### [if you want to build an aar, you can modify build script to publish an aar, or create a new project mupdf-lib:]
+```
 ->cd mupdf-lib
 ->git clone http://git.ghostscript.com/mupdf.git libmupdf
 ->cd libmupdf
@@ -9,22 +11,41 @@ if you want to build an aar, you can modify build script to publish an aar, or c
 ->make generate
 ->cd ..
 ->./gradlew publishMupdfPublicationToMavenLocal
+```
 
 then publish aar to local file system "./m2/com/artifex", the amupdf-android deps the aar
 
-the project dir structure:
+#### some modification for reflow:path file from dir "pdf-patch":
+- pdf-patch/css-apply.c
+- pdf-patch/page.c
+- pdf-patch/Page.java
+- pdf-patch/stext-output.c
+
+```
+	public native byte[] textAsHtml2(String options);
+	public native byte[] textAsXHtml(String options);
+	public native byte[] textAsText(String options);
+```
+
+#### [the project dir structure:]
+
+```
 -mupdf-lib
 --libmupdf
 --gradle
 --build.gradle
 --gradlew
 --AndroidManifest.xml
+```
 
-the content of AndroidManifest.xml is:
+#### the content of AndroidManifest.xml is:
+```
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.artifex.mupdf.fitz" />
+```
 
 --------- mupdf-lib'2 top-level build.gradle content
+```
 apply plugin: 'com.android.library'
 apply plugin: 'maven-publish'
 
@@ -125,4 +146,4 @@ android {
 	}
 	android.ndkVersion '25.2.9519653'
 }
--------------------
+```

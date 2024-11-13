@@ -4,25 +4,6 @@ https://github.com/archko/amupdf-android.git
 ## Building
 thirdparty_build.gradle may not run corretly.
 
-->git clone http://git.ghostscript.com/mupdf.git libmupdf
-->cd libmupdf
-->git pull
-->git submodule update
-->make generate
-->cd ..
-->./gradlew publishMupdfPublicationToMavenLocal
-publish aar to local ./m2/com/artifex
-
-## some modification for reflow:
-modify page.java,add
-`
-	public native byte[] textAsHtml2(String options);
-	public native byte[] textAsXHtml(String options);
-	public native byte[] textAsText(String options);
-`
-and
-stext-output.c
-
 ### run module
 mupdfModule is a application, you can run it,and install app to test mupdf
 antiwordModule is a application, you can run it,and install app to test antiword

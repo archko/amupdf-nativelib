@@ -6,7 +6,7 @@ apply plugin: "kotlin-parcelize"
 android {
     compileSdkVersion 35
     buildToolsVersion "35.0.0"
-    namespace "cn.archko.reader.antiword"
+    namespace "org.vudroid.djvudroid.codec"
 
     defaultConfig {
         minSdkVersion 21
@@ -43,7 +43,7 @@ android {
         }
     }
 
-    android.ndkVersion "26.1.10909125"
+    android.ndkVersion "25.2.9519653"
     //packagingOptions {
     //    // specify the path to your object binaries, or generally:
     //    doNotStrip "**.so"

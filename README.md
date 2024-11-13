@@ -4,6 +4,8 @@ https://github.com/archko/amupdf-android.git
 ## Building
 thirdparty_build.gradle may not run corretly.
 
+build mupdf aar, see compile.md
+
 ### run module
 mupdfModule is a application, you can run it,and install app to test mupdf
 antiwordModule is a application, you can run it,and install app to test antiword

@@ -33,3 +33,5 @@ google-services.json
 *.hprof
 libmupdf
 libarchive
+antiword
+*/.cxx

@@ -1,0 +1,66 @@
+apply plugin: "com.android.application"
+apply plugin: "kotlin-android"
+apply plugin: "kotlin-kapt"
+apply plugin: "kotlin-parcelize"
+
+android {
+    compileSdkVersion 35
+    buildToolsVersion "35.0.0"
+    namespace "cn.archko.reader.antiword"
+
+    defaultConfig {
+        minSdkVersion 21
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_static"
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+    lintOptions { abortOnError false }
+
+    externalNativeBuild {
+        cmake {
+            path "cmake/CMakeLists.txt"
+        }
+        //ndkBuild.path 'jni/libantiword-1.3.1/Android.mk'
+    }
+
+    buildTypes {
+        release {
+            ndk {
+                debugSymbolLevel "FULL"
+            }
+        }
+    }
+
+    android.ndkVersion "26.1.10909125"
+    //packagingOptions {
+    //    // specify the path to your object binaries, or generally:
+    //    doNotStrip "**.so"
+    //}
+
+}
+
+dependencies {
+    api fileTree(dir: "libs", include: ["*.jar"])
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+
+    implementation "androidx.recyclerview:recyclerview:1.4.0-rc01"
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.constraintlayout:constraintlayout:2.2.0"
+
+    implementation "com.google.android.material:material:1.12.0"
+
+    implementation "io.coil-kt:coil:2.7.0"
+
+}

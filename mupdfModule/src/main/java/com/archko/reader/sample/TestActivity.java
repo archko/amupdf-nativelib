@@ -91,19 +91,17 @@ public class TestActivity extends AppCompatActivity {
         System.out.println("name:" + pdfFileName);
 
         Document document = Document.openDocument(pdfFileName);
+        document.layout(1080, 1280, 40);
         int pageCount = document.countPages();
-        new Thread(() -> {
-            Bitmap bitmap = renderBitmap(document);
-            runOnUiThread(() -> {
-                System.out.println(String.format("decode:%s:%s", pageCount, bitmap));
-                imageView.setImageBitmap(bitmap);
-            });
-        }).start();;
+        int page = pageCount > 8 ? 8 : 0;
+        Bitmap bitmap = renderBitmap(document, page);
+        System.out.printf("decode:%s:%s%n", pageCount, bitmap);
+        imageView.setImageBitmap(bitmap);
     }
 
-    public Bitmap renderBitmap(Document document) {
-        float scale = 1f / 1;
-        Page page = document.loadPage(0);
+    public Bitmap renderBitmap(Document document, int index) {
+        float scale = 1f;
+        Page page = document.loadPage(index);
         int width = (int) (page.getBounds().x1 - page.getBounds().x0);
         int height = (int) (page.getBounds().y1 - page.getBounds().y0);
         android.graphics.Rect cropBound = new Rect(0, 0, width, height);

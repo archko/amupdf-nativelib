@@ -75,7 +75,7 @@ public class TestActivity extends AppCompatActivity {
 
     void launchPicker() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("application/pdf");
+        intent.setType("*/*");
         try {
             startActivityForResult(intent, REQUEST_CODE);
         } catch (ActivityNotFoundException e) {
@@ -91,15 +91,17 @@ public class TestActivity extends AppCompatActivity {
         System.out.println("name:" + pdfFileName);
 
         Document document = Document.openDocument(pdfFileName);
+        document.layout(1080, 1280, 40);
         int pageCount = document.countPages();
-        Bitmap bitmap = renderBitmap(document);
-        System.out.println(String.format("decode:%s:%s", pageCount, bitmap));
+        int page = pageCount > 8 ? 8 : 0;
+        Bitmap bitmap = renderBitmap(document, page);
+        System.out.printf("decode:%s:%s%n", pageCount, bitmap);
         imageView.setImageBitmap(bitmap);
     }
 
-    public Bitmap renderBitmap(Document document) {
-        float scale = 1f / 1;
-        Page page = document.loadPage(1);
+    public Bitmap renderBitmap(Document document, int index) {
+        float scale = 1f;
+        Page page = document.loadPage(index);
         int width = (int) (page.getBounds().x1 - page.getBounds().x0);
         int height = (int) (page.getBounds().y1 - page.getBounds().y0);
         android.graphics.Rect cropBound = new Rect(0, 0, width, height);

@@ -4,7 +4,7 @@ https://github.com/archko/amupdf-android.git
 ## Building
 thirdparty_build.gradle may not run corretly.
 
-build mupdf aar, see compile.md
+build mupdf aar, see compile.md, the offical aar is also avalibale
 
 ### run module
 mupdfModule is a application, you can run it,and install app to test mupdf

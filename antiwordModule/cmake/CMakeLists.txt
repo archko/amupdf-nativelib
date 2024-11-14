@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10.2)
 project("antiword")
-set(MY_ROOT "${PROJECT_SOURCE_DIR}/../jni/libantiword-1.3.1/")
+set(MY_ROOT "${PROJECT_SOURCE_DIR}/../../libantiword-1.3.1/")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/libs/${ANDROID_ABI})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-merge-exidx-entries, -DCR3_ANTIWORD_PATCH_2=0, -DCR3_ANTIWORD_PATCH=0, -DENABLE_ANTIWORD=1")

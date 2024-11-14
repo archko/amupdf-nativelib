@@ -1,4 +1,4 @@
-package com.archko.reader.sample;
+package com.archko.reader.antiword;
 
 import android.Manifest;
 import android.content.ActivityNotFoundException;
@@ -15,12 +15,6 @@ import android.provider.Settings;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import com.artifex.mupdf.fitz.Document;
-import com.artifex.mupdf.fitz.Page;
-import com.artifex.mupdf.fitz.R;
-import com.artifex.mupdf.fitz.android.AndroidDrawDevice;
-import com.longluo.ebookreader.Utils;
-
 import java.io.File;
 
 import androidx.annotation.NonNull;
@@ -28,6 +22,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import com.archko.reader.antiword.R;
 
 public class TestActivity extends AppCompatActivity {
 
@@ -37,7 +32,6 @@ public class TestActivity extends AppCompatActivity {
     public static final int PERMISSION_CODE = 42042;
 
     private String pdfFileName;
-    private ImageView imageView;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -46,9 +40,8 @@ public class TestActivity extends AppCompatActivity {
         StatusBarHelper.hideSystemUI(this);
         StatusBarHelper.setImmerseBarAppearance(getWindow(), true);
 
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_test);
         findViewById(R.id.btn).setOnClickListener(v -> launchPicker());
-        imageView = findViewById(R.id.image);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
@@ -82,7 +75,6 @@ public class TestActivity extends AppCompatActivity {
         try {
             startActivityForResult(intent, REQUEST_CODE);
         } catch (ActivityNotFoundException e) {
-            Toast.makeText(this, R.string.toast_pick_file_error, Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -102,42 +94,8 @@ public class TestActivity extends AppCompatActivity {
         imageView.setImageBitmap(bitmap);*/
 
         if (pdfFileName.endsWith("doc")){
-            Utils.openDocFile(this, new File(pdfFileName));
+            LibAntiword.openDocFile( new File(pdfFileName));
         }
-        if (pdfFileName.endsWith("mobi")||pdfFileName.endsWith("azw3")){
-            Utils.openMobiAzwBook(this, new File(pdfFileName));
-        }
-    }
-
-    public Bitmap renderBitmap(Document document, int index) {
-        float scale = 1f;
-        Page page = document.loadPage(index);
-        int width = (int) (page.getBounds().x1 - page.getBounds().x0);
-        int height = (int) (page.getBounds().y1 - page.getBounds().y0);
-        android.graphics.Rect cropBound = new Rect(0, 0, width, height);
-        int pageW;
-        int pageH;
-        int patchX;
-        int patchY;
-        //如果页面的缩放为1,那么这时的pageW就是view的宽.
-        pageW = (int) (cropBound.width() * scale);
-        pageH = (int) (cropBound.height() * scale);
-
-        patchX = (int) (cropBound.left * scale);
-        patchY = (int) (cropBound.top * scale);
-        Bitmap bitmap = Bitmap.createBitmap(pageW, pageH, Bitmap.Config.ARGB_8888);
-        com.artifex.mupdf.fitz.Matrix ctm = new com.artifex.mupdf.fitz.Matrix(scale);
-        AndroidDrawDevice dev = new AndroidDrawDevice(bitmap, patchX, patchY, 0, 0, pageW, pageH);
-
-        try {
-            page.run(dev, ctm, null);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        dev.close();
-        dev.destroy();
-
-        return bitmap;
     }
 
     public void onResult(int resultCode, Intent intent) {

@@ -6,7 +6,7 @@ apply plugin: "kotlin-parcelize"
 android {
     compileSdkVersion 35
     buildToolsVersion "35.0.0"
-    namespace "com.archko.reader.antiword"
+    namespace "com.archko.reader.mobi"
 
     defaultConfig {
         minSdkVersion 21
@@ -32,7 +32,6 @@ android {
         cmake {
             path "cmake/CMakeLists.txt"
         }
-        //ndkBuild.path 'jni/libantiword/Android.mk'
     }
 
     buildTypes {
@@ -55,5 +54,4 @@ dependencies {
     api fileTree(dir: "libs", include: ["*.jar"])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation "androidx.appcompat:appcompat:1.7.0"
-
 }

@@ -159,11 +159,39 @@ task downloadAntiword {
     }
 }
 
+/*Mobi CHAIN*/
+task downloadMobi {
+    doLast {
+        def folder = new File(libmobi)
+        if (folder.exists()) {
+            exec {
+                commandLine = ['git', '-C', libmobi, 'checkout', '-f', 'master']
+            }
+            // Fetch
+            exec {
+                commandLine = ['git', '-C', libmobi, 'fetch', 'origin']
+            }
+        } else {
+            exec {
+                commandLine = ['git', 'clone', 'https://github.com/bfabiszewski/libmobi.git', libmobi]
+            }
+        }
+
+        exec {
+            workingDir file(libmobi)
+        }
+    }
+}
+
 mupdfChain.mustRunAfter djvuChain
 
 task antiwordChain(dependsOn: [downloadAntiword])
 
 antiwordChain.mustRunAfter mupdfChain
 
+task mobiChain(dependsOn: [downloadMobi])
+
+mobiChain.mustRunAfter antiwordChain
+
 /*!!!!!!!!!!RUN ME!!!!!!!!*/
-task buildNativeLibs(dependsOn: [djvuChain, mupdfChain, antiwordChain])
+task buildNativeLibs(dependsOn: [djvuChain, mupdfChain, antiwordChain, mobiChain])

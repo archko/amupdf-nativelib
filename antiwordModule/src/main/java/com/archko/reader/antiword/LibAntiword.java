@@ -17,22 +17,27 @@ public class LibAntiword {
 
     public static native int convertDocToHtml(String input, String output);
 
-    public static void openDocFile( File file) {
-        String path = file.getAbsolutePath();
-        String folderPath = path.substring(0, path.lastIndexOf("/"));
+    public static void openDocFile(File file) {
+        String input = file.getAbsolutePath();
+        int hashCode = (input + file.length() + file.lastModified()).hashCode();
+        String folderPath = input.substring(0, input.lastIndexOf("/"));
+        String output = folderPath + File.separator + hashCode + ".html";
+        Log.d("", String.format("openDocFile: file=%s, folder=%s, convertFilePath=%s", input, folderPath, output));
 
-        String hashCodeStr = path.hashCode() + "";
-        String convertFilePath = folderPath + File.separator + hashCodeStr + ".html";
-        Log.d("", "openDocFile: file=" + path + ", folder=" + folderPath
-                + ",convertFilePath=" + convertFilePath);
-        File convertFile = new File(convertFilePath);
+        int res = 0;
+        File convertFile = new File(output);
         if (!convertFile.exists()) {
-            LibAntiword.convertDocToHtml(path, new File(folderPath, hashCodeStr).getPath());
+            try {
+                res = LibAntiword.convertDocToHtml(input, output);
+            } catch (Exception e) {
+                Log.e("", e.getMessage());
+            }
+        } else {
+            res = 1;
         }
-        File firstConvertFile = new File(folderPath + File.separator + hashCodeStr + hashCodeStr + ".html");
-        if (firstConvertFile.exists()) {
-            firstConvertFile.renameTo(new File(convertFilePath));
+
+        if (res == 0) {
+            convertFile.delete();
         }
-        //openEpubPdfBook(activity, convertFile);
     }
 }

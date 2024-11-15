@@ -35,4 +35,5 @@ libmupdf
 libarchive
 libantiword
 libdjvulibre
+libmobi
 */.cxx

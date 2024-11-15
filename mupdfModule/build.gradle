@@ -1,6 +1,43 @@
-apply plugin: 'com.android.application'
+apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-parcelize'
+apply plugin: 'maven-publish'
+
+afterEvaluate {
+    publishing {
+        publications {
+            // 定义一个名为 mupdf 的发布,
+            // 运行./gradlew publishMupdfPublicationToLocalRepoRepository发布到下面定义的mupdf_c
+            // ./gradlew publishMupdfPublicationToMavenLocal发布到.m2下面
+            // ./gradlew publishMupdfPublicationToRemoteRepoRepository则是发布到远程,要配置远程仓库
+            mupdf(MavenPublication) {
+                groupId = "com.artifex.mupdf"
+                artifactId = "mupdf-fitz"
+                version = '1.25.0'
+                // 必须有这个 否则不会上传AAR包
+                afterEvaluate { artifact(tasks.getByName("bundleReleaseAar")) }
+                // 上传source，这样使用方可以看到方法注释
+                //artifact generateSourcesJar
+                //from components.release
+            }
+        }
+        repositories {
+            maven {
+                // 基于版本名称选择不同的仓库地址
+                def releasesRepoUrl = "file:///Users/archko/PDF/mupdf_c/"
+                def snapshotsRepoUrl = "file:///Users/archko/PDF/mupdf_c/"
+                name = 'localRepo'
+                // url是必须要配置的
+                url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+                // 仓库用户名密码
+                //credentials {
+                //    username = "root"
+                //    password = "root"
+                //}
+            }
+        }
+    }
+}
 
 android {
     compileSdkVersion 35

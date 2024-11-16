@@ -92,20 +92,13 @@ public class TestActivity extends AppCompatActivity {
         pdfFileName = IntentFile.getPath(this, uri);
         System.out.println("name:" + pdfFileName);
 
-        /*Document document = Document.openDocument(pdfFileName);
-        document.layout(1080, 1280, 40);
+        Document document = Document.openDocument(pdfFileName);
+        document.layout(1080, 1880, 42);
         int pageCount = document.countPages();
         int page = pageCount > 8 ? 8 : 0;
         Bitmap bitmap = renderBitmap(document, page);
         System.out.printf("decode:%s:%s%n", pageCount, bitmap);
-        imageView.setImageBitmap(bitmap);*/
-
-        if (pdfFileName.endsWith("doc")){
-            Utils.openDocFile(this, new File(pdfFileName));
-        }
-        if (pdfFileName.endsWith("mobi")||pdfFileName.endsWith("azw3")){
-            Utils.openMobiAzwBook(this, new File(pdfFileName));
-        }
+        imageView.setImageBitmap(bitmap);
     }
 
     public Bitmap renderBitmap(Document document, int index) {

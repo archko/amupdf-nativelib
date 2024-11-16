@@ -140,8 +140,8 @@ fz_print_style_begin_html(fz_context *ctx, fz_output *out, fz_font *font, float 
     if (is_bold) fz_write_string(ctx, out, "<b>");
     if (is_italic) fz_write_string(ctx, out, "<i>");
     fz_write_printf(ctx, out, "<span style=\"font-family:%s;font-size:%.1fpt", family, size);
-    if (color != 0 && color != CMYK_BLACK)
-        fz_write_printf(ctx, out, ";color:#%06x", color);
+    //if (color != 0 && color != CMYK_BLACK)
+    //	fz_write_printf(ctx, out, ";color:#%06x", color);
     fz_write_printf(ctx, out, "\">");
 }
 
@@ -225,7 +225,8 @@ fz_print_stext_image_as_html(fz_context *ctx, fz_output *out, fz_stext_block *bl
     ctm.e -= block->u.i.image->w/2;
     ctm.f -= block->u.i.image->h/2;
 
-    fz_write_printf(ctx, out, "<img style=\"position:absolute;transform:matrix(%g,%g,%g,%g,%g,%g)\" src=\"",
+    //fz_write_printf(ctx, out, "<img style=\"position:absolute;transform:matrix(%g,%g,%g,%g,%g,%g)\" src=\"",
+    fz_write_printf(ctx, out, "<img src=\"",
                     ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f);
 #else
     /* Alternative version of the code that uses scaleX/Y and rotate
@@ -312,7 +313,8 @@ fz_print_stext_block_as_html(fz_context *ctx, fz_output *out, fz_stext_block *bl
             y = line->first_char->origin.y - h * 0.8f;
         }
 
-        fz_write_printf(ctx, out, "<p style=\"top:%.1fpt;left:%.1fpt;line-height:%.1fpt\">", y, x, h);
+        //fz_write_printf(ctx, out, "<p style=\"top:%.1fpt;left:%.1fpt;line-height:%.1fpt\">", y, x, h);
+        fz_write_printf(ctx, out, "<p>", y, x, h);
         font = NULL;
 
         for (ch = line->first_char; ch; ch = ch->next)
@@ -360,7 +362,8 @@ fz_print_stext_page_as_html(fz_context *ctx, fz_output *out, fz_stext_page *page
     float w = page->mediabox.x1 - page->mediabox.x0;
     float h = page->mediabox.y1 - page->mediabox.y0;
 
-    fz_write_printf(ctx, out, "<div id=\"page%d\" style=\"width:%.1fpt;height:%.1fpt\">\n", id, w, h);
+    //fz_write_printf(ctx, out, "<div id=\"page%d\" style=\"width:%.1fpt;height:%.1fpt\">\n", id, w, h);
+    fz_write_printf(ctx, out, "<div id=\"page%d\">\n", id, w, h);
 
     for (block = page->first_block; block; block = block->next)
     {

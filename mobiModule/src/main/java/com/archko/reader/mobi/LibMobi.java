@@ -1,5 +1,6 @@
 package com.archko.reader.mobi;
 
+import android.content.Context;
 import android.util.Log;
 
 import java.io.File;
@@ -17,18 +18,18 @@ public class LibMobi {
 
     public static native int convertToEpub(String input, String output);
 
-    public static void openDocFile(File file) {
+    public static boolean convertMobiToEpub(File file, Context context) {
         String input = file.getAbsolutePath();
         int hashCode = (input + file.length() + file.lastModified()).hashCode();
-        String folderPath = input.substring(0, input.lastIndexOf("/"));
-        String output = folderPath + File.separator + hashCode + ".epub";
-        Log.d("", String.format("openDocFile: file=%s, folder=%s, convertFilePath=%s", input, folderPath, output));
+        //String folderPath = input.substring(0, input.lastIndexOf("/"));
+        File outputFile = new File(context.getExternalCacheDir(), hashCode + ".epub");///folderPath + File.separator + hashCode + ".epub";
+        Log.d("", String.format("convertMobiToEpub: file=%s, convertFilePath=%s",
+                input, outputFile.getAbsoluteFile()));
 
         int res = -1;
-        File convertFile = new File(output);
-        if (!convertFile.exists()) {
+        if (!outputFile.exists()) {
             try {
-                res = LibMobi.convertToEpub(input, output);
+                res = LibMobi.convertToEpub(input, outputFile.getAbsolutePath());
             } catch (Exception e) {
                 Log.e("", e.getMessage());
             }
@@ -37,7 +38,10 @@ public class LibMobi {
         }
 
         if (res != 0) {
-            convertFile.delete();
+            if (outputFile.exists()) {
+                outputFile.delete();
+            }
         }
+        return res == 0;
     }
 }

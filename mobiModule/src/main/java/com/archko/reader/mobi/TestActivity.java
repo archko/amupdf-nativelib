@@ -91,7 +91,7 @@ public class TestActivity extends AppCompatActivity {
         if (pdfFileName.endsWith("mobi") || pdfFileName.endsWith("azw3")
                 || pdfFileName.endsWith("azw4") || pdfFileName.endsWith("azw2")
                 || pdfFileName.endsWith("azw")) {
-            LibMobi.openDocFile(new File(pdfFileName));
+            LibMobi.convertMobiToEpub(new File(pdfFileName), this);
         }
     }
 

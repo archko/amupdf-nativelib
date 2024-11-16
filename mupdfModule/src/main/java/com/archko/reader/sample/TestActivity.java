@@ -19,7 +19,6 @@ import com.artifex.mupdf.fitz.Document;
 import com.artifex.mupdf.fitz.Page;
 import com.artifex.mupdf.fitz.R;
 import com.artifex.mupdf.fitz.android.AndroidDrawDevice;
-import com.longluo.ebookreader.Utils;
 
 import java.io.File;
 

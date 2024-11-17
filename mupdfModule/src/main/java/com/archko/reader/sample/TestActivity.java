@@ -21,8 +21,6 @@ import com.artifex.mupdf.fitz.Page;
 import com.artifex.mupdf.fitz.R;
 import com.artifex.mupdf.fitz.android.AndroidDrawDevice;
 
-import java.io.File;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -93,13 +91,14 @@ public class TestActivity extends AppCompatActivity {
         pdfFileName = IntentFile.getPath(this, uri);
         System.out.println("name:" + pdfFileName);
 
-        String css="* {font-family: 'DroidSansMono', 'NotoSans' ,'MiSansVF', 'menlo' ! important;}";
+        String css = "* {font-family: 'msyh', 'simsun', 'NotoSans-CJK-Regular' ,'MiSansVF', 'menlo' ! important;}";
         Context.setUserCSS(css);
+        Context.useDocumentCSS(false);
 
         Document document = Document.openDocument(pdfFileName);
         document.layout(1080, 1880, 42);
         int pageCount = document.countPages();
-        int page = pageCount > 8 ? 8 : 0;
+        int page = pageCount > 7 ? 7 : 0;
         Bitmap bitmap = renderBitmap(document, page);
         System.out.printf("decode:%s:%s%n", pageCount, bitmap);
         imageView.setImageBitmap(bitmap);
@@ -108,6 +107,11 @@ public class TestActivity extends AppCompatActivity {
     public Bitmap renderBitmap(Document document, int index) {
         float scale = 1f;
         Page page = document.loadPage(index);
+
+        //byte[] bytes = page.textAsHtml2("preserve-whitespace,inhibit-spaces,preserve-images");
+        //String content = new String(bytes);
+        //System.out.println("content:" + content);
+
         int width = (int) (page.getBounds().x1 - page.getBounds().x0);
         int height = (int) (page.getBounds().y1 - page.getBounds().y0);
         android.graphics.Rect cropBound = new Rect(0, 0, width, height);

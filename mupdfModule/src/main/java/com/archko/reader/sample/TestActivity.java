@@ -15,6 +15,7 @@ import android.provider.Settings;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.artifex.mupdf.fitz.Context;
 import com.artifex.mupdf.fitz.Document;
 import com.artifex.mupdf.fitz.Page;
 import com.artifex.mupdf.fitz.R;
@@ -91,6 +92,9 @@ public class TestActivity extends AppCompatActivity {
     private void displayFromUri(Uri uri) {
         pdfFileName = IntentFile.getPath(this, uri);
         System.out.println("name:" + pdfFileName);
+
+        String css="* {font-family: 'DroidSansMono', 'NotoSans' ,'MiSansVF', 'menlo' ! important;}";
+        Context.setUserCSS(css);
 
         Document document = Document.openDocument(pdfFileName);
         document.layout(1080, 1880, 42);

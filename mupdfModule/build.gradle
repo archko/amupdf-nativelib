@@ -1,4 +1,4 @@
-apply plugin: 'com.android.library'
+apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-parcelize'
 apply plugin: 'maven-publish'
@@ -15,7 +15,7 @@ afterEvaluate {
                 artifactId = "mupdf-fitz"
                 version = '1.25.0'
                 // 必须有这个 否则不会上传AAR包
-                afterEvaluate { artifact(tasks.getByName("bundleReleaseAar")) }
+                //afterEvaluate { artifact(tasks.getByName("bundleReleaseAar")) }
                 // 上传source，这样使用方可以看到方法注释
                 //artifact generateSourcesJar
                 //from components.release

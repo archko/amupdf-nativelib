@@ -5,15 +5,11 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
-import android.graphics.Bitmap;
-import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
-import android.widget.ImageView;
-import android.widget.Toast;
 
 import java.io.File;
 
@@ -22,7 +18,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import com.archko.reader.antiword.R;
 
 public class TestActivity extends AppCompatActivity {
 
@@ -85,16 +80,11 @@ public class TestActivity extends AppCompatActivity {
         pdfFileName = IntentFile.getPath(this, uri);
         System.out.println("name:" + pdfFileName);
 
-        /*Document document = Document.openDocument(pdfFileName);
-        document.layout(1080, 1280, 40);
-        int pageCount = document.countPages();
-        int page = pageCount > 8 ? 8 : 0;
-        Bitmap bitmap = renderBitmap(document, page);
-        System.out.printf("decode:%s:%s%n", pageCount, bitmap);
-        imageView.setImageBitmap(bitmap);*/
-
-        if (pdfFileName.endsWith("doc")){
-            LibAntiword.openDocFile( new File(pdfFileName));
+        if (pdfFileName.endsWith("doc")) {
+            LibAntiword.openDocFile(new File(pdfFileName));
+        }
+        if (pdfFileName.endsWith("docx")) {
+            LibAntiword.convertDocxToHtml(new File(pdfFileName), this);
         }
     }
 

@@ -89,6 +89,7 @@ public class Page
 	public native byte[] textAsHtml2(String options);
 	public native byte[] textAsXHtml(String options);
 	public native byte[] textAsText(String options);
+	public native byte[] textAsTextAndImage(String options);
 
 	public native Document getDocument();
 

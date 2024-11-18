@@ -28,6 +28,10 @@ import com.artifex.mupdf.fitz.Page;
 import com.artifex.mupdf.fitz.R;
 import com.artifex.mupdf.fitz.android.AndroidDrawDevice;
 
+import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -53,6 +57,8 @@ public class TestActivity extends AppCompatActivity {
     private Document document;
     ExecutorService executors = Executors.newSingleThreadExecutor();
     private Handler mHandler = new Handler(Looper.getMainLooper());
+    private int vWidth = 1080;
+    private int vHeight = 1880;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -111,16 +117,59 @@ public class TestActivity extends AppCompatActivity {
     void afterViews() {
     }
 
+    public static final String readStringFromInputStream(InputStream in) {
+        if (in == null) {
+            return "";
+        }
+        ByteArrayOutputStream bos = null;
+        try {
+            bos = new ByteArrayOutputStream();
+            byte[] buffer = new byte[512];
+            int len;
+            while ((len = in.read(buffer)) != -1) {
+                bos.write(buffer, 0, len);
+            }
+            return new String(bos.toByteArray(), "UTF-8");
+        } catch (Exception e) {
+        } finally {
+            closeStream(bos);
+        }
+        return "";
+    }
+
+    public static void closeStream(Closeable closeable) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (Exception e) {
+            }
+        }
+    }
+
     private void displayFromUri(Uri uri) {
         pdfFileName = IntentFile.getPath(this, uri);
-        System.out.println("name:" + pdfFileName);
-
-        String css = "* {font-family: 'msyh', 'simsun', 'NotoSans-CJK-Regular' ,'MiSansVF', 'menlo' ! important;}";
-        com.artifex.mupdf.fitz.Context.setUserCSS(css);
+        View view = findViewById(R.id.content);
+        int width = view.getWidth();
+        int height = view.getHeight();
+        if (width < 0) {
+            width = vWidth;
+        }
+        if (height < 0) {
+            height = vHeight;
+        }
+        System.out.printf("width:%s, height:%s, name:%s%n", width, height, pdfFileName);
+        String css = "@page{font-face: 'DroidSans', 'simsun', 'NotoSans-CJK-Regular' ,'MiSansVF', 'menlo' ! important;}";
+        /*try {
+            InputStream is = getAssets().open("mupdf.css");
+            css = readStringFromInputStream(is);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }*/
         com.artifex.mupdf.fitz.Context.useDocumentCSS(false);
+        com.artifex.mupdf.fitz.Context.setUserCSS(css);
 
         document = Document.openDocument(pdfFileName);
-        document.layout(1080, 1880, 42);
+        document.layout(width, height, 36);
         int pageCount = document.countPages();
         /*int page = pageCount > 7 ? 7 : 0;
         Bitmap bitmap = renderBitmap(document, page);

@@ -55,9 +55,9 @@ static fz_font *load_noto(fz_context *ctx, const char *a, const char *b, const c
 
 static fz_font *load_noto_cjk(fz_context *ctx, int lang)
 {
-	fz_font *font = load_noto(ctx, "NotoSerif", "CJK", "-Regular", lang);
+	fz_font *font = load_noto(ctx, "DroidSans", "CJK", "-Regular", lang);
 	if (!font) font = load_noto(ctx, "NotoSans", "CJK", "-Regular", lang);
-	if (!font) font = load_noto(ctx, "DroidSans", "Fallback", "", 0);
+	if (!font) font = load_noto(ctx, "NotoSerif", "Fallback", "", 0);
 	return font;
 }
 

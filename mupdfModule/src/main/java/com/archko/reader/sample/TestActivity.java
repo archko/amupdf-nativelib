@@ -2,30 +2,42 @@ package com.archko.reader.sample;
 
 import android.Manifest;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.Rect;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import com.artifex.mupdf.fitz.Context;
 import com.artifex.mupdf.fitz.Document;
 import com.artifex.mupdf.fitz.Page;
 import com.artifex.mupdf.fitz.R;
 import com.artifex.mupdf.fitz.android.AndroidDrawDevice;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 public class TestActivity extends AppCompatActivity {
 
@@ -36,6 +48,11 @@ public class TestActivity extends AppCompatActivity {
 
     private String pdfFileName;
     private ImageView imageView;
+    private RecyclerView recyclerView;
+    private ImageAdapter imageAdapter;
+    private Document document;
+    ExecutorService executors = Executors.newSingleThreadExecutor();
+    private Handler mHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -47,6 +64,13 @@ public class TestActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         findViewById(R.id.btn).setOnClickListener(v -> launchPicker());
         imageView = findViewById(R.id.image);
+        recyclerView = findViewById(R.id.recyclerView);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        imageAdapter = new ImageAdapter(this);
+        recyclerView.setAdapter(imageAdapter);
+        ColorItemDecoration colorItemDecoration = new ColorItemDecoration(this);
+        colorItemDecoration.setDividerHeight(2);
+        recyclerView.addItemDecoration(colorItemDecoration);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
@@ -92,16 +116,18 @@ public class TestActivity extends AppCompatActivity {
         System.out.println("name:" + pdfFileName);
 
         String css = "* {font-family: 'msyh', 'simsun', 'NotoSans-CJK-Regular' ,'MiSansVF', 'menlo' ! important;}";
-        Context.setUserCSS(css);
-        Context.useDocumentCSS(false);
+        com.artifex.mupdf.fitz.Context.setUserCSS(css);
+        com.artifex.mupdf.fitz.Context.useDocumentCSS(false);
 
-        Document document = Document.openDocument(pdfFileName);
+        document = Document.openDocument(pdfFileName);
         document.layout(1080, 1880, 42);
         int pageCount = document.countPages();
-        int page = pageCount > 7 ? 7 : 0;
+        /*int page = pageCount > 7 ? 7 : 0;
         Bitmap bitmap = renderBitmap(document, page);
         System.out.printf("decode:%s:%s%n", pageCount, bitmap);
-        imageView.setImageBitmap(bitmap);
+        imageView.setImageBitmap(bitmap);*/
+        System.out.printf("decode:%s:", pageCount);
+        imageAdapter.notifyDataSetChanged();
     }
 
     public Bitmap renderBitmap(Document document, int index) {
@@ -178,6 +204,75 @@ public class TestActivity extends AppCompatActivity {
         System.out.println("data:" + intent.getDataString());
         if (null != intent && intent.getData() != null) {
             onResult(RESULT_OK, intent);
+        }
+    }
+
+    private class ImageAdapter extends RecyclerView.Adapter<ImageHolder> {
+        private LayoutInflater inflater;
+        private Context context;
+
+        public ImageAdapter(Context context) {
+            this.context = context;
+        }
+
+        @NonNull
+        @Override
+        public ImageHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            ImageView view = new ImageView(context);
+            RecyclerView.LayoutParams lp = (RecyclerView.LayoutParams) view.getLayoutParams();
+            if (null == lp) {
+                lp = new RecyclerView.LayoutParams(1080, 1080);
+            } else {
+                lp.width = 1080;
+                lp.height = 1080;
+            }
+            view.setImageDrawable(new ColorDrawable(Color.GREEN));
+            return new ImageHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ImageHolder holder, int position) {
+            holder.bind(position);
+        }
+
+        @Override
+        public int getItemCount() {
+            return document == null ? 0 : document.countPages();
+        }
+    }
+
+    private class ImageHolder extends RecyclerView.ViewHolder {
+
+        public ImageHolder(@NonNull View itemView) {
+            super(itemView);
+        }
+
+        public void bind(int position) {
+            ImageView view = (ImageView) itemView;
+            view.setTag(position);
+            decode(position, view);
+        }
+
+        private void decode(int position, ImageView view) {
+            executors.execute(() -> {
+                Bitmap bitmap = renderBitmap(document, position);
+                mHandler.post(() -> update(bitmap, view, position));
+            });
+        }
+
+        private void update(Bitmap bitmap, ImageView view, int position) {
+            int pos = (int) view.getTag();
+            //System.out.println(String.format("pos:%s, position:%s, bitmap:%s", pos, position, bitmap));
+            if (pos == position && bitmap != null) {
+                int width = bitmap.getWidth();
+                int height = bitmap.getHeight();
+                ViewGroup.LayoutParams lp = view.getLayoutParams();
+                lp.width = width;
+                lp.height = height;
+                view.setImageBitmap(bitmap);
+                return;
+            }
+            view.setImageBitmap(null);
         }
     }
 }

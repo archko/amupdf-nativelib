@@ -30,7 +30,6 @@ import com.artifex.mupdf.fitz.android.AndroidDrawDevice;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -177,9 +176,18 @@ public class TestActivity extends AppCompatActivity {
         imageView.setImageBitmap(bitmap);*/
         System.out.printf("decode:%s:", pageCount);
         imageAdapter.notifyDataSetChanged();
+
+        /*Quad[][] s = document.search(0, 0, "医");
+        for (Quad[] quad : s) {
+            System.out.println("search:" + quad.toString());
+        }*/
     }
 
     public Bitmap renderBitmap(Document document, int index) {
+        int viewWidth = recyclerView.getWidth();
+        if (viewWidth == 0) {
+            viewWidth = 1080;
+        }
         float scale = 1f;
         Page page = document.loadPage(index);
 
@@ -190,6 +198,7 @@ public class TestActivity extends AppCompatActivity {
         int width = (int) (page.getBounds().x1 - page.getBounds().x0);
         int height = (int) (page.getBounds().y1 - page.getBounds().y0);
         android.graphics.Rect cropBound = new Rect(0, 0, width, height);
+        scale = 1f * viewWidth / width;
         int pageW;
         int pageH;
         int patchX;

@@ -2,8 +2,9 @@
 
 #### [if you want to build an aar, you can modify build script to publish an aar, or create a new project mupdf-lib:]
 ```
+->mkdir mupdf-lib
 ->cd mupdf-lib
-->git clone http://git.ghostscript.com/mupdf.git libmupdf
+->git clone https://github.com/ArtifexSoftware/mupdf.git libmupdf
 ->cd libmupdf
 ->git pull
 ->git submodule init

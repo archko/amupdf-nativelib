@@ -1,7 +1,8 @@
 # Mention the cmake version name.
 cmake_minimum_required(VERSION 3.4.1)
+project("mupdf")
 set(MUPDF_PATH ../../libmupdf)
-set(LIBARCH ../../libarchive)
+#set(LIBARCH ../../libarchive)
 
 # --- Build a local static library for core mupdf ---
 file(GLOB mupdf_core_SRC
@@ -15,9 +16,9 @@ file(GLOB mupdf_core_SRC
         ${MUPDF_PATH}/generated/resources/fonts/sil/*.c
 )
 
-file(GLOB LIBARCH_INCLUDE
-        ${LIBARCH}/libarchive/*.h
-)
+#file(GLOB LIBARCH_INCLUDE
+#        ${LIBARCH}/libarchive/*.h
+#)
 
 add_library(mupdf_core
         STATIC
@@ -53,24 +54,25 @@ target_compile_options(mupdf_core PRIVATE -ffunction-sections -fdata-sections)
 
 # --- Build a local static library for thirdparty libraries ---
 
-file(GLOB LIBARCH_SOURCE
-        ${LIBARCH}/libarchive/*.c
-)
+#file(GLOB LIBARCH_SOURCE
+#        ${LIBARCH}/libarchive/*.c
+#)
 
-add_library(libarchive STATIC
-        ${LIBARCH_SOURCE}
-)
+#add_library(libarchive STATIC
+#        ${LIBARCH_SOURCE}
+#)
 
 include_directories(
         ${LIBARCH_INCLUDE}
         ${LIBARCH}/contrib/android/include/
 )
 
-target_compile_definitions(libarchive PRIVATE
-        -DHAVE_INTTYPES_H
-        -DOPJ_HAVE_STDINT_H
+target_compile_definitions(
+        #libarchive PRIVATE
+        #-DHAVE_INTTYPES_H
+        #-DOPJ_HAVE_STDINT_H
         -DPLATFORM_CONFIG_H="${LIBARCH}/contrib/android/config/android.h"
-        -D__LIBARCHIVE_CONFIG_H_INCLUDED
+        #-D__LIBARCHIVE_CONFIG_H_INCLUDED
 )
 
 # --- Build a local static library for thirdparty libraries ---
@@ -326,7 +328,7 @@ include_directories(
         ${MUPDF_PATH}/thirdparty/zlib
         ${MUPDF_PATH}/thirdparty/extract/include
         ${MUPDF_PATH}/thirdparty/gumbo-parser/src
-        ${LIBARCH}/libarchive/
+        #${LIBARCH}/libarchive/
 )
 
 #LOCAL_CFLAGS := \
@@ -386,8 +388,12 @@ include_directories(
 target_compile_definitions(mupdf_java PRIVATE -DHAVE_ANDROID -DORION_PDF -DORION_FOR_ANDROID)
 target_compile_options(mupdf_java PRIVATE -ffunction-sections -fdata-sections)
 
-add_dependencies(mupdf_java mupdf_core mupdf_thirdparty libarchive)
-target_link_libraries(mupdf_java mupdf_core mupdf_thirdparty libarchive)
+add_dependencies(mupdf_java mupdf_core mupdf_thirdparty
+        #libarchive
+)
+target_link_libraries(mupdf_java mupdf_core mupdf_thirdparty
+        #libarchive
+)
 
 #LOCAL_LDLIBS := -ljnigraphics -llog -lm
 #

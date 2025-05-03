@@ -737,15 +737,15 @@ fz_match_css(fz_context *ctx, fz_css_match *match, fz_css_match *up, fz_css *css
         if (s)
         {
             fz_try(ctx)
-                    {
-                        prop = fz_parse_css_properties(ctx, css->pool, s);
-                        while (prop)
-                        {
-                            add_property(match, prop->name, prop->value, INLINE_SPECIFICITY);
-                            prop = prop->next;
-                        }
-                        /* We can "leak" the property here, since it is freed along with the pool allocator. */
-                    }
+            {
+                prop = fz_parse_css_properties(ctx, css->pool, s);
+                while (prop)
+                {
+                    add_property(match, prop->name, prop->value, INLINE_SPECIFICITY);
+                    prop = prop->next;
+                }
+                /* We can "leak" the property here, since it is freed along with the pool allocator. */
+            }
             fz_catch(ctx)
             {
                 fz_rethrow_if(ctx, FZ_ERROR_SYSTEM);
@@ -837,25 +837,25 @@ fz_add_css_font_face(fz_context *ctx, fz_html_font_set *set, fz_archive *zip, co
     fz_var(stm);
 
     fz_try(ctx)
-            {
-                if (fz_has_archive_entry(ctx, zip, path))
-                    buf = fz_read_archive_entry(ctx, zip, path);
-                else
-                {
-                    stm = fz_try_open_file(ctx, src);
-                    if (stm == NULL)
-                        fz_throw(ctx, FZ_ERROR_FORMAT, "cannot locate font '%s' specified by css", src);
-                    buf = fz_read_all(ctx, stm, 0);
-                }
-                font = fz_new_font_from_buffer(ctx, NULL, buf, 0, 0);
-                fz_add_html_font_face(ctx, set, family, is_bold, is_italic, is_small_caps, path, font);
-            }
-    fz_always(ctx)
+    {
+        if (fz_has_archive_entry(ctx, zip, path))
+            buf = fz_read_archive_entry(ctx, zip, path);
+        else
         {
-            fz_drop_buffer(ctx, buf);
-            fz_drop_stream(ctx, stm);
-            fz_drop_font(ctx, font);
+            stm = fz_try_open_file(ctx, src);
+            if (stm == NULL)
+                fz_throw(ctx, FZ_ERROR_FORMAT, "cannot locate font '%s' specified by css", src);
+            buf = fz_read_all(ctx, stm, 0);
         }
+        font = fz_new_font_from_buffer(ctx, NULL, buf, 0, 0);
+        fz_add_html_font_face(ctx, set, family, is_bold, is_italic, is_small_caps, path, font);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_buffer(ctx, buf);
+        fz_drop_stream(ctx, stm);
+        fz_drop_font(ctx, font);
+    }
     fz_catch(ctx)
     {
         fz_rethrow_if(ctx, FZ_ERROR_TRYLATER);
@@ -1496,7 +1496,7 @@ fz_apply_css_style(fz_context *ctx, fz_html_font_set *set, fz_css_style *style, 
     style->leading = number_from_property(match, PRO_LEADING, 0, N_UNDEFINED);
 
     style->text_indent = number_from_property(match, PRO_TEXT_INDENT, 0, N_LENGTH);
-    style->text_stroke_width = number_from_property(match, PRO_TEXT_STROKE_WIDTH, 1, N_LENGTH);
+    style->text_stroke_width = number_from_property(match, PRO_TEXT_STROKE_WIDTH, 0, N_LENGTH);
 
     style->width = number_from_property(match, PRO_WIDTH, 0, N_AUTO);
     style->height = number_from_property(match, PRO_HEIGHT, 0, N_AUTO);

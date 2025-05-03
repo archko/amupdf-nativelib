@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.4.1)
 project("mupdf")
 set(MUPDF_PATH ../../libmupdf)
-#set(LIBARCH ../../libarchive)
+set(LIBARCH ../../libarchive)
 
 # --- Build a local static library for core mupdf ---
 file(GLOB mupdf_core_SRC
@@ -16,9 +16,9 @@ file(GLOB mupdf_core_SRC
         ${MUPDF_PATH}/generated/resources/fonts/sil/*.c
 )
 
-#file(GLOB LIBARCH_INCLUDE
-#        ${LIBARCH}/libarchive/*.h
-#)
+file(GLOB LIBARCH_INCLUDE
+        ${LIBARCH}/libarchive/*.h
+)
 
 add_library(mupdf_core
         STATIC
@@ -54,31 +54,65 @@ target_compile_options(mupdf_core PRIVATE -ffunction-sections -fdata-sections)
 
 # --- Build a local static library for thirdparty libraries ---
 
-#file(GLOB LIBARCH_SOURCE
-#        ${LIBARCH}/libarchive/*.c
-#)
+file(GLOB LIBARCH_SOURCE
+        ${LIBARCH}/libarchive/*.c
+)
 
-#add_library(libarchive STATIC
-#        ${LIBARCH_SOURCE}
-#)
+add_library(libarchive STATIC
+        ${LIBARCH_SOURCE}
+)
 
 include_directories(
         ${LIBARCH_INCLUDE}
         ${LIBARCH}/contrib/android/include/
 )
 
-target_compile_definitions(
-        #libarchive PRIVATE
-        #-DHAVE_INTTYPES_H
-        #-DOPJ_HAVE_STDINT_H
+target_compile_definitions(libarchive PRIVATE
+        -DHAVE_INTTYPES_H
+        -DOPJ_HAVE_STDINT_H
         -DPLATFORM_CONFIG_H="${LIBARCH}/contrib/android/config/android.h"
-        #-D__LIBARCHIVE_CONFIG_H_INCLUDED
+        -D__LIBARCHIVE_CONFIG_H_INCLUDED
+    -DHAVE_DECL_INT32_MAX
+    -DHAVE_DECL_INT32_MIN
 )
 
 # --- Build a local static library for thirdparty libraries ---
 
 add_library(mupdf_thirdparty
         STATIC
+        ${MUPDF_PATH}/thirdparty/brotli/c/common/constants.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/common/context.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/common/dictionary.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/common/platform.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/common/shared_dictionary.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/common/transform.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/dec/bit_reader.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/dec/decode.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/dec/huffman.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/dec/state.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/backward_references.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/backward_references_hq.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/bit_cost.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/block_splitter.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/brotli_bit_stream.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/cluster.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/command.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/compound_dictionary.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/compress_fragment.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/compress_fragment_two_pass.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/dictionary_hash.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/encode.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/encoder_dict.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/entropy_encode.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/fast_log.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/histogram.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/literal_cost.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/memory.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/metablock.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/static_dict.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/enc/utf8_util.c
+        ${MUPDF_PATH}/thirdparty/brotli/c/fuzz/run_decode_fuzzer.c
+
         ${MUPDF_PATH}/thirdparty/freetype/src/base/ftbase.c
         ${MUPDF_PATH}/thirdparty/freetype/src/base/ftbbox.c
         ${MUPDF_PATH}/thirdparty/freetype/src/base/ftbitmap.c
@@ -318,6 +352,7 @@ include_directories(
         ${MUPDF_PATH}/include/mupdf
         ${MUPDF_PATH}/scripts/freetype
         ${MUPDF_PATH}/scripts/libjpeg
+        ${MUPDF_PATH}/thirdparty/brotli/c/include
         ${MUPDF_PATH}/thirdparty/freetype/include
         ${MUPDF_PATH}/thirdparty/harfbuzz/src
         ${MUPDF_PATH}/thirdparty/jbig2dec
@@ -328,7 +363,7 @@ include_directories(
         ${MUPDF_PATH}/thirdparty/zlib
         ${MUPDF_PATH}/thirdparty/extract/include
         ${MUPDF_PATH}/thirdparty/gumbo-parser/src
-        #${LIBARCH}/libarchive/
+        ${LIBARCH}/libarchive/
 )
 
 #LOCAL_CFLAGS := \
@@ -383,17 +418,14 @@ add_library(mupdf_java
 include_directories(
         ${MUPDF_PATH}/include
         ${MUPDF_PATH}/platform/java/
+        ${MUPDF_PATH}/include.mupdf
 )
 
-target_compile_definitions(mupdf_java PRIVATE -DHAVE_ANDROID -DORION_PDF -DORION_FOR_ANDROID)
+target_compile_definitions(mupdf_java PRIVATE -DHAVE_ANDROID -DORION_PDF -DORION_FOR_ANDROID -DFZ_JAVA_STORE_SIZE=64<<20)
 target_compile_options(mupdf_java PRIVATE -ffunction-sections -fdata-sections)
 
-add_dependencies(mupdf_java mupdf_core mupdf_thirdparty
-        #libarchive
-)
-target_link_libraries(mupdf_java mupdf_core mupdf_thirdparty
-        #libarchive
-)
+add_dependencies(mupdf_java mupdf_core mupdf_thirdparty libarchive)
+target_link_libraries(mupdf_java mupdf_core mupdf_thirdparty libarchive)
 
 #LOCAL_LDLIBS := -ljnigraphics -llog -lm
 #

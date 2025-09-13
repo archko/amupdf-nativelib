@@ -1,7 +1,8 @@
 #LOCAL_ARM_MODE := arm
 cmake_minimum_required(VERSION 3.2.2)
 project("vudroid")
-set(MY_ROOT "${PROJECT_SOURCE_DIR}/../libdjvulibre/")
+set(MY_ROOT "${PROJECT_SOURCE_DIR}/../../libdjvulibre/")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/libs/${ANDROID_ABI})
 set(ANDROID_ROOT "${PROJECT_SOURCE_DIR}/../jni")
 
 add_library(djvu SHARED

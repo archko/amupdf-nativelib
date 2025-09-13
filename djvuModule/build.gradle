@@ -4,8 +4,8 @@ apply plugin: "kotlin-kapt"
 apply plugin: "kotlin-parcelize"
 
 android {
-    compileSdkVersion 35
-    buildToolsVersion "35.0.0"
+    compileSdkVersion 36
+	buildToolsVersion '36.0.0'
     namespace "org.vudroid.djvudroid.codec"
 
     defaultConfig {
@@ -35,7 +35,6 @@ android {
         cmake {
             path "cmake/CMakeLists.txt"
         }
-        //ndkBuild.path 'jni/djvulibre/Android.mk'
     }
 
     buildTypes {
@@ -46,7 +45,7 @@ android {
         }
     }
 
-    android.ndkVersion "25.2.9519653"
+    android.ndkVersion "29.0.13846066"
     //packagingOptions {
     //    // specify the path to your object binaries, or generally:
     //    doNotStrip "**.so"
@@ -57,6 +56,6 @@ android {
 dependencies {
     api fileTree(dir: "libs", include: ["*.jar"])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
-    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.appcompat:appcompat:1.7.1"
 
 }

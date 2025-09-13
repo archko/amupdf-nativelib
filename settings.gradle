@@ -1,3 +1,4 @@
-include ':mupdfModule'
-include ':antiwordModule'
+//include ':mupdfModule'
+//include ':antiwordModule'
 include ':mobiModule'
+include ':djvuModule'

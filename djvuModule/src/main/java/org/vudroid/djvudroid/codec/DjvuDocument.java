@@ -2,19 +2,21 @@ package org.vudroid.djvudroid.codec;
 
 import org.vudroid.core.codec.CodecDocument;
 import org.vudroid.core.codec.OutlineLink;
+import org.vudroid.core.codec.PageTextBox;
+import org.vudroid.core.codec.SearchResult;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class DjvuDocument implements CodecDocument {
     private long contextHandle;
     private long documentHandle;
-    private final Object waitObject;
     private List<OutlineLink> docOutline;
 
     private DjvuDocument(long contextHandle, long documentHandle, Object waitObject) {
         this.contextHandle = contextHandle;
         this.documentHandle = documentHandle;
-        this.waitObject = waitObject;
     }
 
     static DjvuDocument openDocument(String fileName, DjvuContext djvuContext, Object waitObject) {
@@ -65,17 +67,30 @@ public class DjvuDocument implements CodecDocument {
         return docOutline;
     }
 
-    /*public List<? extends RectF> searchText(final int pageNuber, final String pattern) {
-        final List<PageTextBox> list = DjvuPage.getPageText(documentHandle,
-                pageNuber,
-                context.getContextHandle(),
-                pattern.toLowerCase(Locale.ROOT));
-        if (LengthUtils.isNotEmpty(list)) {
-            CodecPageInfo cpi = getPageInfo(pageNuber);
-            for (final PageTextBox ptb : list) {
-                DjvuPage.normalizeTextBox(ptb, cpi.width, cpi.height);
+    public List<SearchResult> search(String pattern, int pageNum) {
+        List<SearchResult> searchResults = new ArrayList<>();
+        int count = getPageCount();
+        for (int i = 0; i < count; i++) {
+            final List<PageTextBox> results = DjvuPage.getPageText(documentHandle,
+                    pageNum,
+                    contextHandle,
+                    pattern.toLowerCase(Locale.ROOT));
+            if (results == null || results.isEmpty()) {
+                continue;
             }
+            for (PageTextBox textBox : results) {
+                textBox.page = i;
+            }
+            StringBuilder sb = new StringBuilder();
+            //List<ReflowBean> reflowBeans = decodeReflowText(i);
+            //if (reflowBeans != null && !reflowBeans.isEmpty()) {
+            //    for (ReflowBean bean : reflowBeans) {
+            //        sb.append(bean.getData()).append(" ");
+            //    }
+            //}
+            searchResults.add(new SearchResult(i, results, sb.toString()));
         }
-        return list;
-    }*/
+
+        return searchResults;
+    }
 }

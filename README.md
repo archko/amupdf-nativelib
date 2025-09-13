@@ -18,3 +18,6 @@ mobiModule is a application, you can run it,and install app to test antiword
 
 ## gradle task(not implemented)
 `./gradlew -b thirdparty_build.gradle downloadDjvu downloadAndMakeMupdf`
+
+2025.9.13
+add so, compile with ndk 29, 16kb

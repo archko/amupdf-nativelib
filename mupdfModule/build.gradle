@@ -86,5 +86,5 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation('androidx.appcompat:appcompat:1.7.1')
     implementation "androidx.recyclerview:recyclerview:1.4.0"
-    api("com.artifex.mupdf:mupdf-fitz:1.26.4")
+    api("com.artifex.mupdf:mupdf-fitz:1.28.1")
 }

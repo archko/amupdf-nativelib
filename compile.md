@@ -50,7 +50,7 @@ apply plugin: 'com.android.library'
 apply plugin: 'maven-publish'
 
 group = 'com.artifex.mupdf'
-version = '1.25.0'
+version = '1.28.1'
 
 buildscript {
 	repositories {
@@ -67,7 +67,7 @@ buildscript {
 		maven { url "https://kotlin.bintray.com/kotlinx/" }
 	}
 	dependencies {
-		classpath 'com.android.tools.build:gradle:8.6.0'
+		classpath 'com.android.tools.build:gradle:9.3.0'
 	}
 }
 
@@ -95,7 +95,7 @@ publishing {
         mupdf(MavenPublication) {
             groupId = "com.artifex.mupdf"
             artifactId = "mupdf-fitz"
-            version = '1.25.0'
+            version = '1.28.1'
             // 必须有这个 否则不会上传AAR包
             afterEvaluate { artifact(tasks.getByName("bundleReleaseAar")) }
             // 上传source，这样使用方可以看到方法注释
@@ -120,8 +120,8 @@ publishing {
 }
 
 android {
-	compileSdkVersion 35
-	buildToolsVersion '35.0.0'
+	compileSdkVersion 36
+	buildToolsVersion '36.0.0'
 	namespace "com.artifex.mupdf.fitz"
 
 	defaultConfig {
@@ -144,6 +144,6 @@ android {
 	externalNativeBuild {
 		ndkBuild.path 'libmupdf/platform/java/Android.mk'
 	}
-	android.ndkVersion '25.2.9519653'
+	android.ndkVersion '29.0.13846066'
 }
 ```

@@ -24,6 +24,7 @@
 #include "html-imp.h"
 
 #include <limits.h>
+#include <stdlib.h>
 
 //#define DEBUG_OFFICE_TO_HTML
 
@@ -66,6 +67,10 @@ typedef struct
 	fz_list(char *, shared_strings);
 
 	fz_list(char *, footnotes);
+
+	/* Width of the text area in points, used to size images relative to
+	 * the page so that they scale with the surrounding layout. */
+	float content_width;
 
 	char *title;
 } doc_info;
@@ -281,6 +286,44 @@ process_doc_stream(fz_context *ctx, fz_xml *xml, fz_xml *rels, const char *file,
 				}
 			}
 		}
+		else if (fz_xml_is_tag(pos, "pic"))
+		{
+			/* PowerPoint pictures. */
+			fz_xml *blip = fz_xml_find_dfs(pos, "blip", NULL, NULL);
+			if (blip)
+			{
+				show_image(ctx, pos, blip, rels, file, info);
+				/* Do NOT go down, the image has already been dealt with. */
+			}
+			else
+			{
+				next = fz_xml_down(pos);
+				if (next)
+				{
+					pos = next;
+					continue;
+				}
+			}
+		}
+		else if (fz_xml_is_tag(pos, "blip"))
+		{
+			/* Image used as the fill of a PowerPoint shape. */
+			fz_xml *top = NULL;
+			fz_xml *up = fz_xml_up(pos);
+			while (up)
+			{
+				if (fz_xml_is_tag(up, "buBlip"))
+					break; /* Picture bullet, not slide content. */
+				if (fz_xml_is_tag(up, "sp") || fz_xml_is_tag(up, "pic"))
+				{
+					top = up;
+					break;
+				}
+				up = fz_xml_up(up);
+			}
+			if (top)
+				show_image(ctx, top, pos, rels, file, info);
+		}
 		else if (fz_xml_is_tag(pos, "Fallback"))
 		{
 			/* Fallback repeats whatever the Choice branch already provided. */
@@ -414,15 +457,31 @@ process_doc_stream(fz_context *ctx, fz_xml *xml, fz_xml *rels, const char *file,
 		fz_write_string(ctx, info->out, "\n</div>\n");
 }
 
+static char *make_rel_name(fz_context *ctx, const char *file);
+static fz_xml *try_parse_xml_archive_entry(fz_context *ctx, fz_archive *arch, const char *filename, int preserve_white);
+
 static void
 process_item(fz_context *ctx, fz_archive *arch, const char *file, doc_info *info, int do_pages)
 {
 	fz_xml *xml = fz_parse_xml_archive_entry(ctx, arch, file, 1);
+	fz_xml *rels = NULL;
+	char *file_rels = NULL;
+
+	fz_var(rels);
+	fz_var(file_rels);
 
 	fz_try(ctx)
-		process_doc_stream(ctx, xml, NULL, file, info, do_pages);
+	{
+		file_rels = make_rel_name(ctx, file);
+		rels = try_parse_xml_archive_entry(ctx, arch, file_rels, 0);
+		process_doc_stream(ctx, xml, rels, file, info, do_pages);
+	}
 	fz_always(ctx)
+	{
+		fz_drop_xml(ctx, rels);
+		fz_free(ctx, file_rels);
 		fz_drop_xml(ctx, xml);
+	}
 	fz_catch(ctx)
 		fz_rethrow(ctx);
 }
@@ -822,6 +881,9 @@ make_absolute_path(fz_context *ctx, const char *abs, const char *rel)
 
 	while (up)
 	{
+		/* Drop the basename first, then walk back over one directory. */
+		if (aslash != abs)
+			aslash--;
 		while (aslash != abs && aslash[-1] != '/')
 			aslash--;
 
@@ -838,12 +900,57 @@ make_absolute_path(fz_context *ctx, const char *abs, const char *rel)
 	return s;
 }
 
+static float
+vml_style_length(const char *style, const char *name)
+{
+	size_t n = strlen(name);
+	const char *p = style;
+
+	while (p && *p)
+	{
+		char *end;
+		float v;
+
+		while (*p == ' ' || *p == '\t' || *p == ';')
+			++p;
+
+		if (fz_strncasecmp(p, name, n) == 0 && p[n] == ':')
+		{
+			p += n + 1;
+			while (*p == ' ' || *p == '\t')
+				++p;
+			v = strtof(p, &end);
+			p = end;
+
+			if (p[0] == 'i' && p[1] == 'n')
+				v *= 72;
+			else if (p[0] == 'c' && p[1] == 'm')
+				v *= 72.0f / 2.54f;
+			else if (p[0] == 'm' && p[1] == 'm')
+				v *= 72.0f / 25.4f;
+			else if (p[0] == 'p' && p[1] == 'x')
+				v *= 0.75f;
+			else if (p[0] == 'e' && p[1] == 'm')
+				v *= 12;
+
+			return v;
+		}
+
+		p = strchr(p, ';');
+		if (p)
+			++p;
+	}
+
+	return 0;
+}
+
 static void
 show_image(fz_context *ctx, fz_xml *drawing, fz_xml *image, fz_xml *rels, const char *file, doc_info *info)
 {
 	const char *id = NULL;
 	const char *target;
 	char *path = NULL;
+	float w = 0;
 
 	if (image == NULL || rels == NULL || file == NULL)
 		return;
@@ -880,9 +987,6 @@ show_image(fz_context *ctx, fz_xml *drawing, fz_xml *image, fz_xml *rels, const 
 		char *p;
 		fz_xml *extent;
 		const char *cxs;
-		const char *cys;
-		int w = 0;
-		int h = 0;
 
 		path = make_absolute_path(ctx, file, target);
 
@@ -893,23 +997,45 @@ show_image(fz_context *ctx, fz_xml *drawing, fz_xml *image, fz_xml *rels, const 
 
 		extent = fz_xml_find_dfs(drawing, "extent", NULL, NULL);
 		if (extent == NULL)
-			extent = fz_xml_find_dfs(drawing, "ext", NULL, NULL);
+		{
+			fz_xml *xfrm = fz_xml_find_dfs(drawing, "xfrm", NULL, NULL);
+			if (xfrm)
+				extent = fz_xml_find_dfs(xfrm, "ext", NULL, NULL);
+		}
 		if (extent)
 		{
 			cxs = fz_xml_att(extent, "cx");
-			cys = fz_xml_att(extent, "cy");
-			if (cxs && cys)
-			{
-				w = fz_atoi(cxs) / 12700;
-				h = fz_atoi(cys) / 12700;
-			}
+			if (cxs)
+				w = fz_atoi(cxs) / 12700.0f;
+		}
+		else
+		{
+			/* Legacy VML picture, where the size lives in the style. */
+			fz_xml *shape = fz_xml_find_dfs(drawing, "shape", NULL, NULL);
+			const char *style = shape ? fz_xml_att(shape, "style") : NULL;
+			if (style)
+				w = vml_style_length(style, "width");
 		}
 
 		fz_write_string(ctx, info->out, "<img src=\"");
 		doc_escape(ctx, info->out, path);
 		fz_write_string(ctx, info->out, "\"");
-		if (w > 0 && h > 0)
-			fz_write_printf(ctx, info->out, " width=\"%d\" height=\"%d\"", w, h);
+		if (w > 0)
+		{
+			if (info->content_width > 0)
+			{
+				/* Express the width relative to the page so that it keeps
+				 * its proportions whatever layout size the app uses. */
+				int pct = (int)(w * 100.0f / info->content_width + 0.5f);
+				if (pct < 1)
+					pct = 1;
+				if (pct > 100)
+					pct = 100;
+				fz_write_printf(ctx, info->out, " width=\"%d%%\"", pct);
+			}
+			else
+				fz_write_printf(ctx, info->out, " width=\"%d\"", (int)(w + 0.5f));
+		}
 		fz_write_string(ctx, info->out, "/>");
 	}
 	fz_always(ctx)
@@ -1111,6 +1237,44 @@ load_footnotes(fz_context *ctx, fz_archive *arch, fz_xml *rels, doc_info *info, 
 }
 
 static void
+compute_doc_content_width(fz_context *ctx, fz_xml *xml, doc_info *info)
+{
+	fz_xml *pgsz = fz_xml_find_dfs(xml, "pgSz", NULL, NULL);
+	fz_xml *pgmar = fz_xml_find_dfs(xml, "pgMar", NULL, NULL);
+	const char *s;
+	int w = 11906; /* A4 width in twips */
+	int l = 1440;
+	int r = 1440;
+
+	if (pgsz && (s = fz_xml_att(pgsz, "w:w")) != NULL)
+		w = fz_atoi(s);
+	if (pgmar)
+	{
+		if ((s = fz_xml_att(pgmar, "w:left")) != NULL)
+			l = fz_atoi(s);
+		if ((s = fz_xml_att(pgmar, "w:right")) != NULL)
+			r = fz_atoi(s);
+	}
+
+	if (w - l - r > 0)
+		info->content_width = (w - l - r) / 20.0f; /* twips to points */
+}
+
+static void
+compute_presentation_width(fz_context *ctx, fz_xml *xml, doc_info *info)
+{
+	fz_xml *sldsz = fz_xml_find_dfs(xml, "sldSz", NULL, NULL);
+	const char *s;
+
+	if (sldsz && (s = fz_xml_att(sldsz, "cx")) != NULL)
+	{
+		float w = fz_atoi(s) / 12700.0f;
+		if (w > 0)
+			info->content_width = w;
+	}
+}
+
+static void
 process_office_document(fz_context *ctx, fz_archive *arch, const char *file, doc_info *info)
 {
 	char *file_rels;
@@ -1162,6 +1326,7 @@ process_office_document(fz_context *ctx, fz_archive *arch, const char *file, doc
 		pos = fz_xml_find_dfs(xml, "sldId", NULL, NULL);
 		if (pos)
 		{
+			compute_presentation_width(ctx, xml, info);
 			while (pos)
 			{
 				char *id = fz_xml_att(pos, "r:id");
@@ -1181,6 +1346,7 @@ process_office_document(fz_context *ctx, fz_archive *arch, const char *file, doc
 
 		/* Let's try it as word. */
 		{
+			compute_doc_content_width(ctx, xml, info);
 			load_footnotes(ctx, arch, rels, info, file);
 			process_doc_stream(ctx, xml, rels, file, info, 1);
 		}

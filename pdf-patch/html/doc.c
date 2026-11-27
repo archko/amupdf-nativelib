@@ -43,6 +43,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined(MUPDF_ANTIWORD)
@@ -165,6 +166,257 @@ vMuPDFAddEmptyImage(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Embedded image capture                                              */
+/* ------------------------------------------------------------------ */
+
+#define MAX_DOC_IMAGE_BYTES (4 * 1024 * 1024)
+#define MAX_DOC_IMAGE_TOTAL (8 * 1024 * 1024)
+
+typedef struct
+{
+	char *uri;
+	int width;
+} doc_image;
+
+static doc_image *g_images;
+static int g_images_len;
+static int g_images_cap;
+static size_t g_image_bytes;
+static char g_image_marker[32];
+
+static void
+free_doc_images(void)
+{
+	int i;
+
+	for (i = 0; i < g_images_len; i++)
+		free(g_images[i].uri);
+	free(g_images);
+	g_images = NULL;
+	g_images_len = 0;
+	g_images_cap = 0;
+	g_image_bytes = 0;
+}
+
+static unsigned int
+get_le16(const unsigned char *p)
+{
+	return (unsigned int)p[0] | ((unsigned int)p[1] << 8);
+}
+
+static unsigned long
+get_le32(const unsigned char *p)
+{
+	return (unsigned long)p[0] |
+		((unsigned long)p[1] << 8) |
+		((unsigned long)p[2] << 16) |
+		((unsigned long)p[3] << 24);
+}
+
+static void
+put_le16(unsigned char *p, unsigned int v)
+{
+	p[0] = v & 0xff;
+	p[1] = (v >> 8) & 0xff;
+}
+
+static void
+put_le32(unsigned char *p, unsigned long v)
+{
+	p[0] = v & 0xff;
+	p[1] = (v >> 8) & 0xff;
+	p[2] = (v >> 16) & 0xff;
+	p[3] = (v >> 24) & 0xff;
+}
+
+/* Wrap a DIB (as stored in a .doc) in a BMP file header so that MuPDF's
+ * image decoder can load it. */
+static unsigned char *
+wrap_dib(const unsigned char *dib, size_t dib_len, size_t *out_len)
+{
+	unsigned char *bmp;
+	unsigned long bi_size;
+	unsigned long compression;
+	unsigned long clr_used;
+	unsigned long off;
+	unsigned int bpp;
+	unsigned long ncolors;
+	size_t total;
+
+	if (dib_len < 40)
+		return NULL;
+
+	bi_size = get_le32(dib);
+	if (bi_size < 40 || bi_size > dib_len)
+		return NULL;
+
+	bpp = get_le16(dib + 14);
+	compression = get_le32(dib + 16);
+	clr_used = get_le32(dib + 32);
+
+	off = bi_size;
+	if (bi_size == 40 && compression == 3) /* BI_BITFIELDS */
+		off += 12;
+	if ((compression == 0 || compression == 3 || compression == 1 || compression == 2) && bpp <= 8)
+	{
+		ncolors = clr_used ? clr_used : (1UL << bpp);
+		off += ncolors * 4;
+	}
+	if (off > dib_len)
+		return NULL;
+
+	total = 14 + dib_len;
+	bmp = malloc(total);
+	if (bmp == NULL)
+		return NULL;
+
+	bmp[0] = 'B';
+	bmp[1] = 'M';
+	put_le32(bmp + 2, (unsigned long)total);
+	put_le16(bmp + 6, 0);
+	put_le16(bmp + 8, 0);
+	put_le32(bmp + 10, 14 + off);
+	memcpy(bmp + 14, dib, dib_len);
+	*out_len = total;
+	return bmp;
+}
+
+static char *
+encode_base64(const unsigned char *data, size_t len, const char *prefix)
+{
+	static const char tbl[] =
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	size_t plen = strlen(prefix);
+	size_t olen = plen + 4 * ((len + 2) / 3) + 1;
+	char *out;
+	size_t i, o;
+
+	out = malloc(olen);
+	if (out == NULL)
+		return NULL;
+
+	memcpy(out, prefix, plen);
+	o = plen;
+	for (i = 0; i + 2 < len; i += 3)
+	{
+		unsigned long v = ((unsigned long)data[i] << 16) |
+			((unsigned long)data[i + 1] << 8) | data[i + 2];
+		out[o++] = tbl[(v >> 18) & 63];
+		out[o++] = tbl[(v >> 12) & 63];
+		out[o++] = tbl[(v >> 6) & 63];
+		out[o++] = tbl[v & 63];
+	}
+	if (i < len)
+	{
+		unsigned long v = (unsigned long)data[i] << 16;
+		if (i + 1 < len)
+			v |= (unsigned long)data[i + 1] << 8;
+		out[o++] = tbl[(v >> 18) & 63];
+		out[o++] = tbl[(v >> 12) & 63];
+		out[o++] = (i + 1 < len) ? tbl[(v >> 6) & 63] : '=';
+		out[o++] = '=';
+	}
+	out[o] = 0;
+	return out;
+}
+
+/* Called by antiword for every picture. Returns a short marker to embed in
+ * the text stream, or NULL if this image cannot be handled. */
+const char *
+szMuPDFAddImage(FILE *pFile, ULONG ulFileOffsetImage, const imagedata_type *pImg)
+{
+	const char *prefix;
+	unsigned char *data = NULL;
+	unsigned char *raw = NULL;
+	size_t len, raw_len;
+	size_t i;
+	int c;
+	char *uri;
+	doc_image *grown;
+
+	if (pFile == NULL || pImg == NULL)
+		return NULL;
+	if (pImg->tLength <= pImg->tPosition)
+		return NULL;
+
+	len = pImg->tLength - pImg->tPosition;
+	if (len == 0 || len > MAX_DOC_IMAGE_BYTES)
+		return NULL;
+	if (g_image_bytes + len > MAX_DOC_IMAGE_TOTAL)
+		return NULL;
+
+	switch (pImg->eImageType)
+	{
+	case imagetype_is_jpeg:
+		prefix = "data:image/jpeg;base64,";
+		break;
+	case imagetype_is_png:
+		prefix = "data:image/png;base64,";
+		break;
+	case imagetype_is_dib:
+		prefix = "data:image/bmp;base64,";
+		break;
+	default:
+		return NULL;
+	}
+
+	data = malloc(len);
+	if (data == NULL)
+		return NULL;
+
+	if (!bSetDataOffset(pFile, ulFileOffsetImage + (ULONG)pImg->tPosition))
+	{
+		free(data);
+		return NULL;
+	}
+	for (i = 0; i < len; i++)
+	{
+		c = iNextByte(pFile);
+		if (c == EOF)
+		{
+			free(data);
+			return NULL;
+		}
+		data[i] = (unsigned char)c;
+	}
+
+	raw = data;
+	raw_len = len;
+	if (pImg->eImageType == imagetype_is_dib)
+	{
+		raw = wrap_dib(data, len, &raw_len);
+		free(data);
+		if (raw == NULL)
+			return NULL;
+	}
+
+	uri = encode_base64(raw, raw_len, prefix);
+	free(raw);
+	if (uri == NULL)
+		return NULL;
+
+	if (g_images_len >= g_images_cap)
+	{
+		int cap = g_images_cap ? g_images_cap * 2 : 16;
+		grown = realloc(g_images, (size_t)cap * sizeof(*g_images));
+		if (grown == NULL)
+		{
+			free(uri);
+			return NULL;
+		}
+		g_images = grown;
+		g_images_cap = cap;
+	}
+
+	g_images[g_images_len].uri = uri;
+	g_images[g_images_len].width = pImg->iHorSizeScaled;
+	snprintf(g_image_marker, sizeof g_image_marker, "\001%d\001", g_images_len);
+	g_images_len++;
+	g_image_bytes += raw_len;
+	return g_image_marker;
+}
+
+/* ------------------------------------------------------------------ */
 /* DocBook -> HTML transformer                                         */
 /* ------------------------------------------------------------------ */
 
@@ -230,6 +482,45 @@ put_text(doc_html *d, const char *s, const char *e)
 	while (s < e)
 	{
 		unsigned char c = (unsigned char)*s;
+
+		if (c == 0x01)
+		{
+			/* Image marker: \001<id>\001 */
+			const char *q = s + 1;
+			int id = 0;
+			int digits = 0;
+
+			if (s > run)
+				put_html(d, run, (size_t)(s - run));
+
+			while (q < e && *q >= '0' && *q <= '9')
+			{
+				id = id * 10 + (*q - '0');
+				q++;
+				digits++;
+			}
+			if (digits > 0 && q < e && (unsigned char)*q == 0x01)
+			{
+				q++;
+				if (id >= 0 && id < g_images_len)
+				{
+					put_str(d, "<img src=\"");
+					put_str(d, g_images[id].uri);
+					put_str(d, "\"");
+					if (g_images[id].width > 0)
+					{
+						char num[32];
+						fz_snprintf(num, sizeof num,
+							" style=\"width:%dpt\"", g_images[id].width);
+						put_str(d, num);
+					}
+					put_str(d, "/>");
+				}
+			}
+			s = q;
+			run = s;
+			continue;
+		}
 
 		if (c >= 0x20 && c < 0x7f)
 		{
@@ -802,6 +1093,8 @@ doc_antiword_to_html(fz_context *ctx, fz_buffer *buf)
 	fz_var(docbook);
 	fz_var(html_buf);
 
+	free_doc_images();
+
 	fz_try(ctx)
 	{
 		blen = fz_buffer_storage(ctx, buf, &data);
@@ -838,7 +1131,7 @@ doc_antiword_to_html(fz_context *ctx, fz_buffer *buf)
 		opts.eEncoding = encoding_utf_8;
 		opts.iPageHeight = INT_MAX;
 		opts.iPageWidth = INT_MAX;
-		opts.eImageLevel = level_no_images;
+		opts.eImageLevel = level_default;
 		vSetOptions(&opts);
 
 		diag = pCreateDiagram("mupdf", "document.doc");
@@ -913,6 +1206,7 @@ doc_antiword_to_html(fz_context *ctx, fz_buffer *buf)
 		if (out_file)
 			fclose(out_file);
 		fz_free(ctx, docbook);
+		free_doc_images();
 		g_doc_data = NULL;
 		g_doc_len = 0;
 		g_doc_pos = 0;

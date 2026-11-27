@@ -305,8 +305,8 @@ run_toggle_on(fz_xml *rPr, const char *tag, const char *att)
 	return val[0] != 0 && strcmp(val, "0") && strcmp(val, "false") && strcmp(val, "off");
 }
 
-static void
-emit_table_cell_open(fz_context *ctx, fz_xml *tc, doc_info *info)
+static int
+cell_grid_span(fz_xml *tc)
 {
 	fz_xml *tcPr = fz_xml_find_down(tc, "tcPr");
 	fz_xml *gs = tcPr ? fz_xml_find_down(tcPr, "gridSpan") : NULL;
@@ -321,13 +321,25 @@ emit_table_cell_open(fz_context *ctx, fz_xml *tc, doc_info *info)
 		if (val)
 			span = fz_atoi(val);
 	}
+	if (span < 1)
+		span = 1;
+	if (span > 64)
+		span = 64;
+	return span;
+}
+
+static void
+emit_table_cell_open(fz_context *ctx, fz_xml *tc, doc_info *info)
+{
+	int span = cell_grid_span(tc);
 
 	if (span > 1)
-		fz_write_printf(ctx, info->out,
-			"<td colspan=\"%d\" style=\"border:1px solid #999999;padding:0.15em 0.3em;vertical-align:top;\">", span);
+		fz_write_printf(ctx, info->out, "<td colspan=\"%d\" style=\"", span);
 	else
-		fz_write_string(ctx, info->out,
-			"<td style=\"border:1px solid #999999;padding:0.15em 0.3em;vertical-align:top;\">");
+		fz_write_string(ctx, info->out, "<td style=\"");
+
+	fz_write_string(ctx, info->out,
+		"border:1px solid #999999;padding:0.2em 0.3em;vertical-align:top;overflow-wrap:break-word;\">");
 }
 
 static void
@@ -1654,6 +1666,21 @@ process_office_document_properties(fz_context *ctx, fz_archive *arch, const char
 		fz_rethrow(ctx);
 }
 
+static const char office_css[] =
+	"<style>"
+	"@page{margin:1.2em 1.5em}"
+	"body{margin:0.3em 0.5em;font-family:serif;overflow-wrap:break-word;}"
+	"p{margin:0.4em 0;line-height:1.35;overflow-wrap:break-word;}"
+	"table{width:100%;border-collapse:collapse;margin:0.5em 0;}"
+	"td,th{border:1px solid #999999;padding:0.2em 0.3em;vertical-align:top;overflow-wrap:break-word;}"
+	"td p,th p{margin:0;}"
+	"img{max-width:100%;height:auto;}"
+	"h1{font-size:1.6em;margin:0.8em 0 0.4em;}"
+	"h2{font-size:1.4em;margin:0.7em 0 0.3em;}"
+	"h3{font-size:1.2em;margin:0.6em 0 0.3em;}"
+	"h4,h5,h6{font-size:1.05em;margin:0.5em 0 0.2em;}"
+	"</style>\n";
+
 static fz_buffer *
 fz_office_to_html(fz_context *ctx, fz_html_font_set *set, fz_buffer *buffer_in, fz_archive *dir, fz_office_to_html_opts *opts)
 {
@@ -1709,37 +1736,11 @@ fz_office_to_html(fz_context *ctx, fz_html_font_set *set, fz_buffer *buffer_in, 
 
 		/* Try other types */
 		{
-			const char *main_file = NULL;
-			const char *main_type;
-
 			xml = try_parse_xml_archive_entry(ctx, archive, "_rels/.rels", 0);
 
 			fz_write_string(ctx, info.out, "<html>\n<head>\n");
 
-			/* Tighten the default spacing so that pages do not end up with
-			 * large gaps around block images. */
-			pos = fz_xml_find_dfs(xml, "Relationship", "Type", schema);
-			if (pos)
-				main_file = fz_xml_att(pos, "Target");
-
-			main_type = main_file;
-			if (main_type && main_type[0] == '/')
-				++main_type;
-
-			if (main_type && !strncmp(main_type, "ppt/", 4))
-				fz_write_string(ctx, info.out,
-					"<style>@page{margin:1em 1em}body{margin:0}"
-					"p{margin:0.2em 0}"
-					"table{margin:0.5em 0;border-collapse:collapse}"
-					"td,th{border:1px solid #999999;padding:0.15em 0.3em;vertical-align:top}"
-					"td p{margin:0}</style>\n");
-			else
-				fz_write_string(ctx, info.out,
-					"<style>@page{margin:1.5em 2em}body{margin:0.5em 1em}"
-					"p{margin:0.6em 0}"
-					"table{margin:0.5em 0;border-collapse:collapse}"
-					"td,th{border:1px solid #999999;padding:0.15em 0.3em;vertical-align:top}"
-					"td p{margin:0}</style>\n");
+			fz_write_string(ctx, info.out, office_css);
 
 			pos = fz_xml_find_dfs(xml, "Relationship", "Type", schema_props);
 			if (pos)

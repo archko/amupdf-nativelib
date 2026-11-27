@@ -194,6 +194,142 @@ show_footnote(fz_context *ctx, fz_xml *v, doc_info *info)
 
 static void show_image(fz_context *ctx, fz_xml *drawing, fz_xml *image, fz_xml *rels, const char *file, doc_info *info);
 
+/* Map a DOCX w:jc value or a PPTX algn value to an inline CSS fragment. */
+static const char *
+paragraph_align_css(const char *val)
+{
+	if (val == NULL)
+		return NULL;
+	if (!strcmp(val, "center") || !strcmp(val, "ctr"))
+		return "text-align:center;";
+	if (!strcmp(val, "right") || !strcmp(val, "end") || !strcmp(val, "r"))
+		return "text-align:right;";
+	if (!strcmp(val, "both") || !strcmp(val, "justify") ||
+		!strcmp(val, "distribute") || !strcmp(val, "dist") || !strcmp(val, "just"))
+		return "text-align:justify;";
+	return NULL;
+}
+
+/* Emit a style= attribute for a 'p' node, based on the paragraph
+ * properties of either a DOCX w:p or a PPTX a:p. */
+static void
+emit_paragraph_style(fz_context *ctx, fz_xml *p, doc_info *info)
+{
+	fz_xml *pPr = fz_xml_find_down(p, "pPr");
+	fz_xml *jc;
+	fz_xml *ind;
+	const char *val;
+	const char *css;
+	float left = 0;
+	float first = 0;
+
+	if (pPr == NULL)
+		return;
+
+	jc = fz_xml_find_down(pPr, "jc");
+	if (jc)
+		val = fz_xml_att(jc, "w:val");
+	else
+		val = NULL;
+	if (val == NULL)
+		val = fz_xml_att(pPr, "algn");
+	css = paragraph_align_css(val);
+
+	ind = fz_xml_find_down(pPr, "ind");
+	if (ind)
+	{
+		if ((val = fz_xml_att(ind, "w:left")) != NULL ||
+			(val = fz_xml_att(ind, "w:start")) != NULL)
+			left = fz_atoi(val) / 20.0f; /* twips to points */
+		if ((val = fz_xml_att(ind, "w:firstLine")) != NULL)
+			first = fz_atoi(val) / 20.0f;
+		else if ((val = fz_xml_att(ind, "w:hanging")) != NULL)
+			first = -fz_atoi(val) / 20.0f;
+	}
+
+	/* PowerPoint keeps indentation in EMU (1pt = 12700 EMU) and uses
+	 * a level number when an explicit left margin is not present. */
+	if ((val = fz_xml_att(pPr, "marL")) != NULL)
+		left = fz_atoi(val) / 12700.0f;
+	else if ((val = fz_xml_att(pPr, "lvl")) != NULL)
+		left = fz_atoi(val) * 18.0f;
+	if ((val = fz_xml_att(pPr, "indent")) != NULL)
+		first = fz_atoi(val) / 12700.0f;
+
+	if (left < 0)
+		left = 0;
+	if (left > 400)
+		left = 400;
+	if (first > 200)
+		first = 200;
+	if (first < -200)
+		first = -200;
+
+	if (css == NULL && left <= 0 && first == 0)
+		return;
+
+	fz_write_string(ctx, info->out, " style=\"");
+	if (css)
+		fz_write_string(ctx, info->out, css);
+	if (left > 0)
+		fz_write_printf(ctx, info->out, "margin-left:%.1fpt;", left);
+	if (first != 0)
+		fz_write_printf(ctx, info->out, "text-indent:%.1fpt;", first);
+	fz_write_string(ctx, info->out, "\"");
+}
+
+/* A DOCX toggle (w:b, w:i) is on when present without a w:val, or with a
+ * truthy w:val. PowerPoint stores the same information as a b="1"/i="1"
+ * attribute on a:rPr. */
+static int
+run_toggle_on(fz_xml *rPr, const char *tag, const char *att)
+{
+	fz_xml *node;
+	const char *val;
+
+	if (rPr == NULL)
+		return 0;
+
+	val = fz_xml_att(rPr, att);
+	if (val)
+		return val[0] != 0 && strcmp(val, "0") && strcmp(val, "false");
+
+	node = fz_xml_find_down(rPr, tag);
+	if (node == NULL)
+		return 0;
+
+	val = fz_xml_att(node, "w:val");
+	if (val == NULL)
+		return 1;
+
+	return val[0] != 0 && strcmp(val, "0") && strcmp(val, "false") && strcmp(val, "off");
+}
+
+static void
+emit_table_cell_open(fz_context *ctx, fz_xml *tc, doc_info *info)
+{
+	fz_xml *tcPr = fz_xml_find_down(tc, "tcPr");
+	fz_xml *gs = tcPr ? fz_xml_find_down(tcPr, "gridSpan") : NULL;
+	const char *val;
+	int span = 1;
+
+	if (gs)
+	{
+		val = fz_xml_att(gs, "w:val");
+		if (val == NULL)
+			val = fz_xml_att(gs, "val");
+		if (val)
+			span = fz_atoi(val);
+	}
+
+	if (span > 1)
+		fz_write_printf(ctx, info->out,
+			"<td colspan=\"%d\" style=\"border:1px solid #999999;padding:0.15em 0.3em;vertical-align:top;\">", span);
+	else
+		fz_write_string(ctx, info->out,
+			"<td style=\"border:1px solid #999999;padding:0.15em 0.3em;vertical-align:top;\">");
+}
+
 static void
 process_doc_stream(fz_context *ctx, fz_xml *xml, fz_xml *rels, const char *file, doc_info *info, int do_pages)
 {
@@ -201,6 +337,8 @@ process_doc_stream(fz_context *ctx, fz_xml *xml, fz_xml *rels, const char *file,
 	fz_xml *next;
 	const char *paragraph_style = NULL;
 	const char *inline_style = NULL;
+	int run_bold = 0;
+	int run_italic = 0;
 
 #ifdef DEBUG_OFFICE_TO_HTML
 	fz_write_printf(ctx, fz_stddbg(ctx), "process_doc_stream:\n");
@@ -385,7 +523,34 @@ process_doc_stream(fz_context *ctx, fz_xml *xml, fz_xml *rels, const char *file,
 			}
 			else if (fz_xml_is_tag(pos, "p"))
 			{
-				fz_write_string(ctx, info->out, "<p>");
+				fz_write_string(ctx, info->out, "<p");
+				emit_paragraph_style(ctx, pos, info);
+				fz_write_string(ctx, info->out, ">");
+			}
+			else if (fz_xml_is_tag(pos, "tbl"))
+			{
+				fz_write_string(ctx, info->out,
+					"<table style=\"width:100%;border-collapse:collapse;margin:0.5em 0;\">\n");
+			}
+			else if (fz_xml_is_tag(pos, "tr"))
+			{
+				fz_write_string(ctx, info->out, "<tr>\n");
+			}
+			else if (fz_xml_is_tag(pos, "tc"))
+			{
+				emit_table_cell_open(ctx, pos, info);
+			}
+			else if (fz_xml_is_tag(pos, "r"))
+			{
+				fz_xml *rPr = fz_xml_find_down(pos, "rPr");
+
+				run_bold = run_toggle_on(rPr, "b", "b") || run_toggle_on(rPr, "bCs", "bCs");
+				run_italic = run_toggle_on(rPr, "i", "i") || run_toggle_on(rPr, "iCs", "iCs");
+
+				if (run_bold)
+					fz_write_string(ctx, info->out, "<b>");
+				if (run_italic)
+					fz_write_string(ctx, info->out, "<i>");
 			}
 			else if (fz_xml_is_tag(pos, "tab"))
 			{
@@ -437,12 +602,34 @@ process_doc_stream(fz_context *ctx, fz_xml *xml, fz_xml *rels, const char *file,
 			}
 			else if (fz_xml_is_tag(pos, "r"))
 			{
-				/* Seems to be pseudo-close for rStyle. */
+				/* Close any inline formatting opened for this run. */
 				if (inline_style)
 				{
 					fz_write_printf(ctx, info->out, "</%s>", inline_style);
 					inline_style = NULL;
 				}
+				if (run_italic)
+				{
+					fz_write_string(ctx, info->out, "</i>");
+					run_italic = 0;
+				}
+				if (run_bold)
+				{
+					fz_write_string(ctx, info->out, "</b>");
+					run_bold = 0;
+				}
+			}
+			else if (fz_xml_is_tag(pos, "tc"))
+			{
+				fz_write_string(ctx, info->out, "</td>\n");
+			}
+			else if (fz_xml_is_tag(pos, "tr"))
+			{
+				fz_write_string(ctx, info->out, "</tr>\n");
+			}
+			else if (fz_xml_is_tag(pos, "tbl"))
+			{
+				fz_write_string(ctx, info->out, "</table>\n");
 			}
 			next = fz_xml_next(pos);
 			if (next)
@@ -844,7 +1031,11 @@ process_sheet(fz_context *ctx, fz_archive *arch, const char *name, const char *f
 static void
 process_slide(fz_context *ctx, fz_archive *arch, const char *file, doc_info *info)
 {
-	fz_write_printf(ctx, info->out, "<div id=\"slide%d\">\n", info->page++);
+	/* Keep the slides visually apart when several are laid out in one
+	 * continuous flow. */
+	if (info->page > 0)
+		fz_write_string(ctx, info->out, "<hr style=\"margin:1em 0;border:0;border-top:1px solid #cccccc;\"/>\n");
+	fz_write_printf(ctx, info->out, "<div id=\"slide%d\" style=\"margin:0.5em 0;\">\n", info->page++);
 	process_item(ctx, arch, file, info, 0);
 	fz_write_printf(ctx, info->out, "</div>\n");
 }
@@ -944,6 +1135,34 @@ vml_style_length(const char *style, const char *name)
 	return 0;
 }
 
+static float
+group_width_scale(fz_xml *node)
+{
+	float scale = 1;
+	fz_xml *up = fz_xml_up(node);
+
+	while (up)
+	{
+		if (fz_xml_is_tag(up, "grpSp"))
+		{
+			fz_xml *pr = fz_xml_find_down(up, "grpSpPr");
+			fz_xml *xfrm = pr ? fz_xml_find_down(pr, "xfrm") : NULL;
+			fz_xml *ext = xfrm ? fz_xml_find_down(xfrm, "ext") : NULL;
+			fz_xml *chext = xfrm ? fz_xml_find_down(xfrm, "chExt") : NULL;
+			const char *es = ext ? fz_xml_att(ext, "cx") : NULL;
+			const char *cs = chext ? fz_xml_att(chext, "cx") : NULL;
+			int e = es ? fz_atoi(es) : 0;
+			int c = cs ? fz_atoi(cs) : 0;
+
+			if (e > 0 && c > 0)
+				scale *= (float)e / c;
+		}
+		up = fz_xml_up(up);
+	}
+
+	return scale;
+}
+
 static void
 show_image(fz_context *ctx, fz_xml *drawing, fz_xml *image, fz_xml *rels, const char *file, doc_info *info)
 {
@@ -951,6 +1170,7 @@ show_image(fz_context *ctx, fz_xml *drawing, fz_xml *image, fz_xml *rels, const 
 	const char *target;
 	char *path = NULL;
 	float w = 0;
+	int block = 1;
 
 	if (image == NULL || rels == NULL || file == NULL)
 		return;
@@ -1017,6 +1237,23 @@ show_image(fz_context *ctx, fz_xml *drawing, fz_xml *image, fz_xml *rels, const 
 				w = vml_style_length(style, "width");
 		}
 
+		/* Map a shape inside a PowerPoint group into slide coordinates. */
+		if (w > 0)
+			w *= group_width_scale(drawing);
+
+		/* A PowerPoint picture placeholder may inherit its size from the
+		 * slide layout; fall back to the full slide width. */
+		if (w <= 0 && info->content_width > 0 && fz_xml_is_tag(drawing, "pic"))
+			w = info->content_width;
+
+		/* Wrap standalone/floating images in a block container so they are
+		 * centred and do not run into the text margins. Inline DOCX images
+		 * (wp:inline) stay inline so small icons keep flowing with text. */
+		block = fz_xml_find_dfs(drawing, "inline", NULL, NULL) == NULL;
+
+		if (block)
+			fz_write_string(ctx, info->out, "<div style=\"text-align:center;margin:0.4em 0;\">");
+
 		fz_write_string(ctx, info->out, "<img src=\"");
 		doc_escape(ctx, info->out, path);
 		fz_write_string(ctx, info->out, "\"");
@@ -1037,6 +1274,9 @@ show_image(fz_context *ctx, fz_xml *drawing, fz_xml *image, fz_xml *rels, const 
 				fz_write_printf(ctx, info->out, " width=\"%d\"", (int)(w + 0.5f));
 		}
 		fz_write_string(ctx, info->out, "/>");
+
+		if (block)
+			fz_write_string(ctx, info->out, "</div>\n");
 	}
 	fz_always(ctx)
 	{
@@ -1239,12 +1479,33 @@ load_footnotes(fz_context *ctx, fz_archive *arch, fz_xml *rels, doc_info *info, 
 static void
 compute_doc_content_width(fz_context *ctx, fz_xml *xml, doc_info *info)
 {
-	fz_xml *pgsz = fz_xml_find_dfs(xml, "pgSz", NULL, NULL);
-	fz_xml *pgmar = fz_xml_find_dfs(xml, "pgMar", NULL, NULL);
+	fz_xml *body = fz_xml_find_dfs(xml, "body", NULL, NULL);
+	fz_xml *sect = body ? fz_xml_find_down(body, "sectPr") : NULL;
+	fz_xml *pgsz = NULL;
+	fz_xml *pgmar = NULL;
 	const char *s;
 	int w = 11906; /* A4 width in twips */
 	int l = 1440;
 	int r = 1440;
+
+	/* Prefer the final, body level section properties. Documents with more
+	 * than one section carry per-paragraph sectPr entries; the body level
+	 * one (the last section) governs the page size used for layout. */
+	if (sect == NULL)
+	{
+		fz_xml *pos = fz_xml_find_dfs(xml, "sectPr", NULL, NULL);
+		while (pos)
+		{
+			sect = pos;
+			pos = fz_xml_find_next_dfs(pos, "sectPr", NULL, NULL);
+		}
+	}
+
+	if (sect)
+	{
+		pgsz = fz_xml_find_down(sect, "pgSz");
+		pgmar = fz_xml_find_down(sect, "pgMar");
+	}
 
 	if (pgsz && (s = fz_xml_att(pgsz, "w:w")) != NULL)
 		w = fz_atoi(s);
@@ -1448,20 +1709,46 @@ fz_office_to_html(fz_context *ctx, fz_html_font_set *set, fz_buffer *buffer_in, 
 
 		/* Try other types */
 		{
+			const char *main_file = NULL;
+			const char *main_type;
+
 			xml = try_parse_xml_archive_entry(ctx, archive, "_rels/.rels", 0);
 
-			fz_write_string(ctx, info.out, "<html>\n");
+			fz_write_string(ctx, info.out, "<html>\n<head>\n");
+
+			/* Tighten the default spacing so that pages do not end up with
+			 * large gaps around block images. */
+			pos = fz_xml_find_dfs(xml, "Relationship", "Type", schema);
+			if (pos)
+				main_file = fz_xml_att(pos, "Target");
+
+			main_type = main_file;
+			if (main_type && main_type[0] == '/')
+				++main_type;
+
+			if (main_type && !strncmp(main_type, "ppt/", 4))
+				fz_write_string(ctx, info.out,
+					"<style>@page{margin:1em 1em}body{margin:0}"
+					"p{margin:0.2em 0}"
+					"table{margin:0.5em 0;border-collapse:collapse}"
+					"td,th{border:1px solid #999999;padding:0.15em 0.3em;vertical-align:top}"
+					"td p{margin:0}</style>\n");
+			else
+				fz_write_string(ctx, info.out,
+					"<style>@page{margin:1.5em 2em}body{margin:0.5em 1em}"
+					"p{margin:0.6em 0}"
+					"table{margin:0.5em 0;border-collapse:collapse}"
+					"td,th{border:1px solid #999999;padding:0.15em 0.3em;vertical-align:top}"
+					"td p{margin:0}</style>\n");
 
 			pos = fz_xml_find_dfs(xml, "Relationship", "Type", schema_props);
 			if (pos)
 			{
 				const char *file = fz_xml_att(pos, "Target");
-				fz_write_string(ctx, info.out, "<head>\n");
 				process_office_document_properties(ctx, archive, file, &info);
-				fz_write_string(ctx, info.out, "</head>\n");
 			}
 
-			fz_write_string(ctx, info.out, "<body>\n");
+			fz_write_string(ctx, info.out, "</head>\n<body>\n");
 			pos = fz_xml_find_dfs(xml, "Relationship", "Type", schema);
 			if (!pos)
 				fz_throw(ctx, FZ_ERROR_FORMAT, "Archive not docx.");
@@ -1536,6 +1823,9 @@ office_open_document(fz_context *ctx, const fz_document_handler *handler, fz_str
 	fz_stream *stm = NULL;
 	fz_archive *arch = NULL;
 	fz_document *doc = NULL;
+	unsigned char *bufdata = NULL;
+	size_t buflen = 0;
+	int is_zip = 0;
 
 	fz_var(buf);
 	fz_var(stm);
@@ -1548,20 +1838,52 @@ office_open_document(fz_context *ctx, const fz_document_handler *handler, fz_str
 		 * images from it, just like the EPUB document handler does. */
 		if (zip && (fz_has_archive_entry(ctx, zip, "_rels/.rels") ||
 			fz_has_archive_entry(ctx, zip, "META-INF/container.xml")))
+		{
 			arch = fz_keep_archive(ctx, zip);
+		}
 		else
 		{
 			if (file == NULL)
 				fz_throw(ctx, FZ_ERROR_ARGUMENT, "No document data to open");
+
 			buf = fz_read_all(ctx, file, 0);
-			stm = fz_open_buffer(ctx, buf);
-			arch = fz_open_archive_with_stream(ctx, stm);
+			buflen = fz_buffer_storage(ctx, buf, &bufdata);
+			is_zip = buflen >= 2 && bufdata[0] == 'P' && bufdata[1] == 'K';
+
+			if (!is_zip)
+			{
+				/* Binary Word (.doc) is an OLE2 compound document, and
+				 * older Word files are not archives either. antiword
+				 * parses both, so route them directly without involving
+				 * MuPDF's CFB reader (which can reject valid .doc files
+				 * with "Invalid tree"). */
+				doc = fz_open_doc_document_with_buffer(ctx, buf);
+			}
+			else
+			{
+				stm = fz_open_buffer(ctx, buf);
+				arch = fz_try_open_archive_with_stream(ctx, stm);
+			}
 		}
 
-		/* fz_htdoc_open_document_with_buffer takes ownership of buf. */
-		convert = buf;
-		buf = NULL;
-		doc = fz_htdoc_open_document_with_buffer(ctx, arch, convert, &fz_htdoc_office);
+		if (doc == NULL)
+		{
+			if (arch && fz_has_archive_entry(ctx, arch, "WordDocument"))
+			{
+				if (buf == NULL)
+					fz_throw(ctx, FZ_ERROR_ARGUMENT, "No document data to open");
+				doc = fz_open_doc_document_with_buffer(ctx, buf);
+			}
+			else
+			{
+				if (arch == NULL)
+					fz_throw(ctx, FZ_ERROR_FORMAT, "Failed to open office document");
+				/* fz_htdoc_open_document_with_buffer takes ownership of buf. */
+				convert = buf;
+				buf = NULL;
+				doc = fz_htdoc_open_document_with_buffer(ctx, arch, convert, &fz_htdoc_office);
+			}
+		}
 	}
 	fz_always(ctx)
 	{
@@ -1581,11 +1903,15 @@ static const char *office_extensions[] =
 	"xlsx",
 	"pptx",
 	"hwpx",
+	"doc",
+	"dot",
 	NULL
 };
 
 static const char *office_mimetypes[] =
 {
+	// DOC (binary Word)
+	"application/msword",
 	// DOCX
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	// XLSX
@@ -1620,12 +1946,38 @@ office_recognize_doc_content(fz_context *ctx, const fz_document_handler *handler
 	{
 		if (stream)
 		{
+			unsigned char hdr[8];
+			size_t n;
+
+			/* Peek at the header first. Binary Word (.doc) is an OLE2
+			 * compound document; route it by magic because MuPDF's CFB
+			 * reader can reject otherwise-valid Word files ("Invalid
+			 * tree"), while antiword parses them fine. */
+			fz_seek(ctx, stream, 0, SEEK_SET);
+			n = fz_read(ctx, stream, hdr, sizeof hdr);
+			if (n == sizeof hdr &&
+				hdr[0] == 0xd0 && hdr[1] == 0xcf && hdr[2] == 0x11 && hdr[3] == 0xe0 &&
+				hdr[4] == 0xa1 && hdr[5] == 0xb1 && hdr[6] == 0x1a && hdr[7] == 0xe1)
+			{
+				ret = 75;
+				break;
+			}
+			fz_seek(ctx, stream, 0, SEEK_SET);
+
 			arch = fz_try_open_archive_with_stream(ctx, stream);
 			if (arch == NULL)
 				break;
 		}
 		else
 			arch = fz_keep_archive(ctx, zip);
+
+		/* Binary MS Word documents are CFB containers with a WordDocument
+		 * stream; those are handled by source/html/doc.c using antiword. */
+		if (arch && fz_has_archive_entry(ctx, arch, "WordDocument"))
+		{
+			ret = 75;
+			break;
+		}
 
 		xml = fz_try_parse_xml_archive_entry(ctx, arch, "META-INF/container.xml", 0);
 		if (xml)
